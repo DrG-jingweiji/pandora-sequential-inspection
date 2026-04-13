@@ -20,7 +20,7 @@ CF_RANGE = (0, 5)
 CP_RANGE = (0, 3)
 SEED = 0
 DP_CUTOFF = 9                      # OPT only computed for N <= DP_CUTOFF
-NUM_PROTOTYPICAL_BOXES = 64
-BOX_DISTANCE = 0.3
+NUM_PROTOTYPICAL_BOXES = 100
+BOX_DISTANCE = 0.5
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'output')
