@@ -4,10 +4,13 @@ import numpy as np
 
 
 def sum_of_variances(box_list):
-    """Dispersion measure: sum of variance of F-thresholds and P-thresholds.
+    """Dispersion measure: Var(σ^F) + Var(σ^P) across the instance's boxes.
 
     Used in the P-opening analysis (Appendix) to measure heterogeneity
-    of thresholds across boxes. Old code: sum_of_variances in Experiment.py.
+    of thresholds across boxes.  Note: the paper's text describes this as
+    "sum of standard deviations", but the original code computes the sum
+    of *variances* (std²), and the published figures use this formula.
+    Old code: sum_of_variances in Experiment.py.
     """
     f_thresholds = [box.f_threshold for box in box_list]
     p_thresholds = [box.p_threshold for box in box_list]

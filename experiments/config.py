@@ -22,5 +22,6 @@ SEED = 0
 DP_CUTOFF = 9                      # OPT only computed for N <= DP_CUTOFF
 NUM_PROTOTYPICAL_BOXES = 100
 BOX_DISTANCE = 0.5
+DEFAULT_WORKERS = 3                # parallel processes (override with --workers)
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'output')

@@ -88,11 +88,13 @@ def generate_one_box_v2_t2(rng=None):
 
 
 def generate_prototypical_boxes(n_boxes, distance=0.5, rng=None,
-                                max_attempts=500000, return_all=False):
+                                max_attempts=500000, return_all=False,
+                                require_p_dominant=True):
     """Generate a diverse set of prototypical boxes.
 
     Selects boxes that are spread out in (σ^F, σ^P) space among the
-    selected set. Filters to positive thresholds and σ^P > σ^F.
+    selected set.  Filters to positive thresholds; optionally also
+    requires σ^P > σ^F.
     Old code: Experiment.py generate.
 
     Parameters
@@ -100,6 +102,10 @@ def generate_prototypical_boxes(n_boxes, distance=0.5, rng=None,
     return_all : bool
         If True, also return a list of all candidate boxes generated
         (for scatter plot visualization in Figure EC.8).
+    require_p_dominant : bool
+        If True (default), only select boxes with σ^P > σ^F.  Set to
+        False for the P-opening experiments (Appendix), which need a
+        mixed pool containing both σ^P > σ^F and σ^P ≤ σ^F boxes.
 
     Returns
     -------
@@ -130,7 +136,7 @@ def generate_prototypical_boxes(n_boxes, distance=0.5, rng=None,
         if return_all:
             all_candidates.append(box)
 
-        if box.p_threshold <= box.f_threshold:
+        if require_p_dominant and box.p_threshold <= box.f_threshold:
             continue
 
         is_different = True

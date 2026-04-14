@@ -20,20 +20,83 @@ Outputs:
 import os
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from pandora.solver import PandoraSolver
 from pandora.policies import weitzman_policy
-from pandora.instance_generator import generate_prototypical_boxes, sample_instance
+from pandora.instance_generator import generate_prototypical_boxes
 from pandora.utils import sum_of_variances, p_dominant_ratio
 from experiments.config import (
     SMALL_N_RANGE, SMALL_INSTANCES, SEED, NUM_PROTOTYPICAL_BOXES,
-    BOX_DISTANCE, DP_CUTOFF, OUTPUT_DIR,
+    BOX_DISTANCE, DP_CUTOFF, OUTPUT_DIR, DEFAULT_WORKERS,
+)
+from experiments.parallel import (
+    generate_instance_tasks, run_parallel, checkpoint_path_for, get_shared,
 )
 
 
+def _p_opening_worker(N, rep_idx, indices):
+    """Solve one instance and compute P-opening metrics."""
+    selected_boxes = get_shared('selected_boxes')
+    box_list = [selected_boxes[i] for i in indices]
+
+    solver = PandoraSolver(box_list)
+    opt_val = solver.solve_dp()
+    n_f, n_p = solver.expected_openings('DP')
+
+    total = n_f + n_p
+    p_ratio = n_p / total if total > 0 else 0.0
+
+    weitz_val = solver.evaluate_policy(weitzman_policy)
+    weitz_ratio = weitz_val / opt_val if opt_val > 0 else 1.0
+
+    p_dom = p_dominant_ratio(box_list)
+    dispersion = sum_of_variances(box_list)
+
+    return {
+        'p_ratio': float(p_ratio),
+        'p_dominant_fraction': float(p_dom),
+        'dispersion': float(dispersion),
+        'opt_value': float(opt_val),
+        'weitzman_value': float(weitz_val),
+        'weitzman_ratio': float(weitz_ratio),
+        'n_f_openings': float(n_f),
+        'n_p_openings': float(n_p),
+        'indices': indices,
+    }
+
+
+_MORE_BOXES_SPEC = {
+    'value_list': [0.5, 2.2, 5, 7, 9.5, 12],
+    'cond_prob_matrix': [
+        [0.3, 0.15, 0.2, 0.15, 0.1, 0.1],
+        [0.1, 0.15, 0.15, 0.2, 0.1, 0.3],
+        [0.1, 0.1, 0.1, 0.15, 0.15, 0.4],
+    ],
+    'type_probs': [0.6, 0.2, 0.2],
+    'c_F': 3.0,
+}
+_CP_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+
+
+def _more_boxes_worker(c_P_str, N):
+    """Create N identical boxes with the given c_P, solve DP, return P-ratio."""
+    from pandora.box import Box
+
+    spec = get_shared('box_spec')
+    c_P = float(c_P_str)
+    box = Box(spec['value_list'], spec['cond_prob_matrix'],
+              spec['type_probs'], c_P, spec['c_F'])
+    box_list = [box] * N
+
+    solver = PandoraSolver(box_list)
+    solver.solve_dp()
+    n_f, n_p = solver.expected_openings('DP')
+    total = n_f + n_p
+    return {'p_ratio': float(n_p / total if total > 0 else 0.0)}
+
+
 def run_p_opening_analysis(n_range=None, n_instances=None, seed=None,
-                           selected_boxes=None):
+                           selected_boxes=None, n_workers=None):
     """Run Experiment 4: P-opening analysis with figure generation.
 
     Returns a DataFrame with per-instance metrics.
@@ -44,59 +107,42 @@ def run_p_opening_analysis(n_range=None, n_instances=None, seed=None,
         n_instances = SMALL_INSTANCES
     if seed is None:
         seed = SEED
-
-    import random
-    random.seed(seed)
-    np.random.seed(seed)
-    rng_np = np.random.default_rng(seed)
+    if n_workers is None:
+        n_workers = DEFAULT_WORKERS
 
     if selected_boxes is None:
-        print("Generating prototypical boxes...")
+        print("Generating prototypical boxes (unfiltered for P-opening)...")
         selected_boxes = generate_prototypical_boxes(
-            NUM_PROTOTYPICAL_BOXES, BOX_DISTANCE
+            NUM_PROTOTYPICAL_BOXES, BOX_DISTANCE, require_p_dominant=False,
         )
 
+    effective_range = [N for N in n_range if N <= DP_CUTOFF]
+
+    tasks = generate_instance_tasks(
+        effective_range, lambda N: n_instances, len(selected_boxes), seed,
+    )
+
+    ckpt = checkpoint_path_for(OUTPUT_DIR, 'p_opening')
+    all_results = run_parallel(
+        _p_opening_worker, tasks,
+        shared_data={'selected_boxes': selected_boxes},
+        n_workers=n_workers,
+        checkpoint_path=ckpt,
+        desc="P-opening",
+    )
+
+    # Build per-instance DataFrame (in deterministic order)
+    output_keys = ['p_ratio', 'p_dominant_fraction', 'dispersion',
+                   'opt_value', 'weitzman_value', 'weitzman_ratio',
+                   'n_f_openings', 'n_p_openings']
     rows = []
-    low_disp_example = None
-    high_disp_example = None
-
-    for N in n_range:
-        if N > DP_CUTOFF:
-            continue
-        print(f"\n--- N = {N} ---")
-
-        for rep in tqdm(range(n_instances), desc=f"N={N}"):
-            box_list, _ = sample_instance(selected_boxes, N, rng_np)
-            solver = PandoraSolver(box_list)
-
-            opt_val = solver.solve_dp()
-            n_f, n_p = solver.expected_openings('DP')
-
-            total_openings = n_f + n_p
-            p_ratio = n_p / total_openings if total_openings > 0 else 0.0
-
-            weitz_val = solver.evaluate_policy(weitzman_policy)
-            weitz_ratio = weitz_val / opt_val if opt_val > 0 else 1.0
-
-            p_dom = p_dominant_ratio(box_list)
-            dispersion = sum_of_variances(box_list)
-
-            if low_disp_example is None and dispersion < 3:
-                low_disp_example = list(box_list)
-            if high_disp_example is None and dispersion > 18:
-                high_disp_example = list(box_list)
-
-            rows.append({
-                'N': N,
-                'p_ratio': p_ratio,
-                'p_dominant_fraction': p_dom,
-                'dispersion': dispersion,
-                'opt_value': opt_val,
-                'weitzman_value': weitz_val,
-                'weitzman_ratio': weitz_ratio,
-                'n_f_openings': n_f,
-                'n_p_openings': n_p,
-            })
+    for N in effective_range:
+        for rep in range(n_instances):
+            key = f"{N}_{rep}"
+            if key not in all_results:
+                continue
+            r = all_results[key]
+            rows.append({'N': N, **{k: r[k] for k in output_keys}})
 
     df = pd.DataFrame(rows)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -110,7 +156,25 @@ def run_p_opening_analysis(n_range=None, n_instances=None, seed=None,
     print("\nP-opening summary by N:")
     print(summary.to_string(index=False))
 
-    # --- Generate figures ---
+    # ── Find low/high dispersion examples (in sequential order) ──────
+    low_disp_example = None
+    high_disp_example = None
+    for N in effective_range:
+        for rep in range(n_instances):
+            key = f"{N}_{rep}"
+            if key not in all_results:
+                continue
+            r = all_results[key]
+            if low_disp_example is None and r['dispersion'] < 3:
+                low_disp_example = [selected_boxes[i] for i in r['indices']]
+            if high_disp_example is None and r['dispersion'] > 18:
+                high_disp_example = [selected_boxes[i] for i in r['indices']]
+            if low_disp_example is not None and high_disp_example is not None:
+                break
+        if low_disp_example is not None and high_disp_example is not None:
+            break
+
+    # ── Generate figures ─────────────────────────────────────────────
     print("\nGenerating P-opening figures...")
     from experiments.figures import (
         plot_figure_EC9a, plot_figure_EC9b,
@@ -139,50 +203,49 @@ def run_p_opening_analysis(n_range=None, n_instances=None, seed=None,
     return df
 
 
-def run_more_boxes_experiment(selected_boxes=None, seed=None,
-                              n_box_specs=10, n_range=None):
+def run_more_boxes_experiment(n_range=None, n_workers=None):
     """Run the 'more boxes' i.i.d. experiment (Figure EC.10d).
 
-    Randomly sample a few box specifications, then for each N in n_range
-    create an instance of N identical copies of that box, solve DP,
-    and compute the P-ratio.
+    Uses a single fixed box specification (from the old code's
+    OneBoxExperiment.ipynb) and varies c_P from 0.1 to 0.6.  For each
+    c_P level, creates N = 1..7 identical copies and plots P-ratio vs N.
     """
-    if seed is None:
-        seed = SEED
     if n_range is None:
-        n_range = range(2, 10)
-
-    import random
-    random.seed(seed + 1000)
-    np.random.seed(seed + 1000)
-    rng_np = np.random.default_rng(seed + 1000)
-
-    if selected_boxes is None:
-        print("Generating prototypical boxes...")
-        selected_boxes = generate_prototypical_boxes(
-            NUM_PROTOTYPICAL_BOXES, BOX_DISTANCE
-        )
+        n_range = range(1, 8)
+    if n_workers is None:
+        n_workers = DEFAULT_WORKERS
 
     n_values = list(n_range)
-    p_ratios_by_n = [[] for _ in n_values]
 
-    indices = rng_np.integers(0, len(selected_boxes), size=n_box_specs)
-    box_specs = [selected_boxes[i] for i in indices]
+    tasks = []
+    for c_P in _CP_VALUES:
+        c_P_str = f"{c_P:.1f}"
+        for N in n_values:
+            tasks.append((f"{c_P_str}_{N}", c_P_str, N))
 
-    print(f"\nRunning more_boxes experiment ({n_box_specs} box specs, "
+    print(f"\nRunning more_boxes experiment ({len(_CP_VALUES)} c_P levels, "
           f"N={n_values[0]}..{n_values[-1]})...")
 
-    for box_spec in tqdm(box_specs, desc="box specs"):
-        for ni, N in enumerate(n_values):
-            box_list = [box_spec] * N
-            solver = PandoraSolver(box_list)
-            solver.solve_dp()
-            n_f, n_p = solver.expected_openings('DP')
-            total = n_f + n_p
-            p_ratio = n_p / total if total > 0 else 0.0
-            p_ratios_by_n[ni].append(p_ratio)
+    ckpt = checkpoint_path_for(OUTPUT_DIR, 'more_boxes')
+    all_results = run_parallel(
+        _more_boxes_worker, tasks,
+        shared_data={'box_spec': _MORE_BOXES_SPEC},
+        n_workers=n_workers,
+        checkpoint_path=ckpt,
+        desc="More boxes",
+    )
+
+    results_by_cp = {}
+    for c_P in _CP_VALUES:
+        c_P_str = f"{c_P:.1f}"
+        p_ratios = []
+        for N in n_values:
+            key = f"{c_P_str}_{N}"
+            if key in all_results:
+                p_ratios.append(all_results[key]['p_ratio'])
+        results_by_cp[c_P] = p_ratios
 
     from experiments.figures import plot_figure_EC10d
-    plot_figure_EC10d(n_values, p_ratios_by_n)
+    plot_figure_EC10d(n_values, results_by_cp)
 
-    return n_values, p_ratios_by_n
+    return n_values, results_by_cp

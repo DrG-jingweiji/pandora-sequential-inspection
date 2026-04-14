@@ -53,8 +53,8 @@ def plot_figure_EC8(selected_boxes, all_candidates):
     all_x = [b.f_threshold for b in all_candidates]
     all_y = [b.p_threshold for b in all_candidates]
 
-    sel_x = [b.f_threshold for b in selected_boxes if b.c_F >= b.c_P]
-    sel_y = [b.p_threshold for b in selected_boxes if b.c_F >= b.c_P]
+    sel_x = [b.f_threshold for b in selected_boxes]
+    sel_y = [b.p_threshold for b in selected_boxes]
 
     fig, ax = plt.subplots()
     ax.scatter(all_x, all_y, alpha=0.1)
@@ -76,8 +76,7 @@ def plot_figure_EC9a(p_dominant_fractions, p_ratios):
     fig, ax = plt.subplots()
     ax.scatter(p_dominant_fractions, p_ratios, alpha=0.5)
     ax.set_xlabel('Proportion of boxes with larger P-thresholds', fontsize=14)
-    ax.set_ylabel('P-F ratio of DP', fontsize=14)
-    ax.set_ylim(0, 3.5)
+    ax.set_ylabel('P-ratio', fontsize=14)
     _savefig(fig, 'figure_EC9a_p_ratio_vs_proportion.png')
 
 
@@ -151,8 +150,7 @@ def plot_figure_EC10c(dispersions, p_ratios):
     fig, ax = plt.subplots()
     ax.scatter(dispersions, p_ratios, alpha=0.5)
     ax.set_xlabel('Dispersion', fontsize=14)
-    ax.set_ylabel('P-F ratio of DP', fontsize=14)
-    ax.set_ylim(0, 3.5)
+    ax.set_ylabel('P-ratio', fontsize=14)
     _savefig(fig, 'figure_EC10c_p_ratio_vs_dispersion.png')
 
 
@@ -160,21 +158,23 @@ def plot_figure_EC10c(dispersions, p_ratios):
 # Figure EC.10d: P-ratio vs number of boxes (i.i.d. experiment)
 # ======================================================================
 
-def plot_figure_EC10d(n_values, p_ratios_by_n):
-    """Scatter: P-ratio of OPT vs number of i.i.d. boxes.
+def plot_figure_EC10d(n_values, results_by_cp):
+    """Line plot: P-ratio vs number of i.i.d. boxes, one line per c_P.
 
     Paper: Figure EC.10 bottom-right, more_boxes.png.
+    Old code: OneBoxExperiment.ipynb.
 
     Parameters
     ----------
     n_values : list of int
-        The N values used.
-    p_ratios_by_n : list of lists
-        For each entry in n_values, the list of P-ratios across instances.
+        The N values used (x-axis).
+    results_by_cp : dict
+        Mapping {c_P: list_of_p_ratios} where each list aligns with n_values.
     """
     fig, ax = plt.subplots()
-    for n_val, ratios in zip(n_values, p_ratios_by_n):
-        ax.scatter([n_val] * len(ratios), ratios, alpha=0.5)
+    for c_P, p_ratios in sorted(results_by_cp.items()):
+        ax.plot(n_values, p_ratios, marker='o', label=f'$c_P={c_P:.1f}$')
     ax.set_xlabel('Number of boxes', fontsize=14)
-    ax.set_ylabel('P-F ratio of DP', fontsize=14)
+    ax.set_ylabel('P-ratio', fontsize=14)
+    ax.legend(fontsize=10)
     _savefig(fig, 'figure_EC10d_p_ratio_vs_num_boxes.png')

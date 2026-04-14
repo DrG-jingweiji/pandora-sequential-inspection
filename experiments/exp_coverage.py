@@ -11,21 +11,68 @@ Outputs:
 """
 
 import os
-import time
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from pandora.solver import PandoraSolver, COND_STOP, COND_F_OPEN, COND_P_OPEN
-from pandora.instance_generator import generate_prototypical_boxes, sample_instance
+from pandora.instance_generator import generate_prototypical_boxes
 from experiments.config import (
     SMALL_N_RANGE, SMALL_INSTANCES, SEED, NUM_PROTOTYPICAL_BOXES,
-    BOX_DISTANCE, DP_CUTOFF, OUTPUT_DIR,
+    BOX_DISTANCE, OUTPUT_DIR, DEFAULT_WORKERS,
+)
+from experiments.parallel import (
+    generate_instance_tasks, run_parallel, checkpoint_path_for, get_shared,
 )
 
 
+def _coverage_worker(N, rep_idx, indices):
+    """Solve one instance and compute theorem coverage metrics."""
+    selected_boxes = get_shared('selected_boxes')
+    box_list = [selected_boxes[i] for i in indices]
+
+    solver = PandoraSolver(box_list)
+    solver.solve_dp()
+    stats = solver.get_dp_stats()
+    dp_stats = stats['dp_stats']
+    action_dict = solver.dp_action_dict
+
+    n_states = len(dp_stats)
+    if n_states == 0:
+        return {
+            'coverage_stop': 0.0, 'coverage_f': 0.0, 'coverage_p': 0.0,
+            'coverage_total': 0.0, 'recall_f': 1.0, 'recall_p': 1.0,
+        }
+
+    n_stop = n_f_cond = n_p_cond = n_f_optimal = n_p_optimal = 0
+
+    for state_tuple, sinfo in dp_stats.items():
+        conds = sinfo['conditions']
+        action = action_dict.get(state_tuple, "STOP")
+
+        if conds[COND_STOP]:
+            n_stop += 1
+        if conds[COND_F_OPEN]:
+            n_f_cond += 1
+        if conds[COND_P_OPEN]:
+            n_p_cond += 1
+
+        if action.startswith("F"):
+            n_f_optimal += 1
+        elif action.startswith("P"):
+            n_p_optimal += 1
+
+    return {
+        'coverage_stop': n_stop / n_states,
+        'coverage_f': n_f_cond / n_states,
+        'coverage_p': n_p_cond / n_states,
+        'coverage_total': (n_stop + n_f_cond + n_p_cond) / n_states,
+        'recall_f': n_f_cond / n_f_optimal if n_f_optimal > 0 else 1.0,
+        'recall_p': n_p_cond / n_p_optimal if n_p_optimal > 0 else 1.0,
+    }
+
+
 def run_coverage_experiment(n_range=None, n_instances=None, seed=None,
-                            selected_boxes=None):
+                            selected_boxes=None, n_workers=None):
     """Run Experiment 1: theorem coverage analysis.
 
     Returns a DataFrame with columns:
@@ -38,11 +85,8 @@ def run_coverage_experiment(n_range=None, n_instances=None, seed=None,
         n_instances = SMALL_INSTANCES
     if seed is None:
         seed = SEED
-
-    import random
-    random.seed(seed)
-    np.random.seed(seed)
-    rng_np = np.random.default_rng(seed)
+    if n_workers is None:
+        n_workers = DEFAULT_WORKERS
 
     if selected_boxes is None:
         print("Generating prototypical boxes...")
@@ -50,76 +94,35 @@ def run_coverage_experiment(n_range=None, n_instances=None, seed=None,
             NUM_PROTOTYPICAL_BOXES, BOX_DISTANCE
         )
 
-    results = []
+    tasks = generate_instance_tasks(
+        n_range, lambda N: n_instances, len(selected_boxes), seed,
+    )
 
+    ckpt = checkpoint_path_for(OUTPUT_DIR, 'coverage')
+    all_results = run_parallel(
+        _coverage_worker, tasks,
+        shared_data={'selected_boxes': selected_boxes},
+        n_workers=n_workers,
+        checkpoint_path=ckpt,
+        desc="Coverage",
+    )
+
+    metrics = list(next(iter(all_results.values())).keys())
+    rows = []
     for N in n_range:
-        print(f"\n--- N = {N} ---")
-        cov_stop_list = []
-        cov_f_list = []
-        cov_p_list = []
-        cov_total_list = []
-        recall_f_list = []
-        recall_p_list = []
-
-        for rep in tqdm(range(n_instances), desc=f"N={N}"):
-            box_list, _ = sample_instance(selected_boxes, N, rng_np)
-            solver = PandoraSolver(box_list)
-            solver.solve_dp()
-            stats = solver.get_dp_stats()
-            dp_stats = stats['dp_stats']
-            action_dict = solver.dp_action_dict
-
-            n_states = len(dp_stats)
-            if n_states == 0:
-                continue
-
-            n_stop = 0
-            n_f_cond = 0
-            n_p_cond = 0
-            n_f_optimal = 0
-            n_p_optimal = 0
-
-            for state_tuple, sinfo in dp_stats.items():
-                conds = sinfo['conditions']
-                action = action_dict.get(state_tuple, "STOP")
-
-                if conds[COND_STOP]:
-                    n_stop += 1
-                if conds[COND_F_OPEN]:
-                    n_f_cond += 1
-                if conds[COND_P_OPEN]:
-                    n_p_cond += 1
-
-                if action.startswith("F"):
-                    n_f_optimal += 1
-                elif action.startswith("P"):
-                    n_p_optimal += 1
-
-            cov_total = (n_stop + n_f_cond + n_p_cond) / n_states
-            cov_stop = n_stop / n_states
-            cov_f = n_f_cond / n_states
-            cov_p = n_p_cond / n_states
-            recall_f = n_f_cond / n_f_optimal if n_f_optimal > 0 else 1.0
-            recall_p = n_p_cond / n_p_optimal if n_p_optimal > 0 else 1.0
-
-            cov_stop_list.append(cov_stop)
-            cov_f_list.append(cov_f)
-            cov_p_list.append(cov_p)
-            cov_total_list.append(cov_total)
-            recall_f_list.append(recall_f)
-            recall_p_list.append(recall_p)
-
-        results.append({
+        n_results = [
+            all_results[f"{N}_{rep}"]
+            for rep in range(n_instances)
+            if f"{N}_{rep}" in all_results
+        ]
+        if not n_results:
+            continue
+        rows.append({
             'N': N,
-            'coverage_stop': np.mean(cov_stop_list),
-            'coverage_f': np.mean(cov_f_list),
-            'coverage_p': np.mean(cov_p_list),
-            'coverage_total': np.mean(cov_total_list),
-            'recall_f': np.mean(recall_f_list),
-            'recall_p': np.mean(recall_p_list),
+            **{k: float(np.mean([r[k] for r in n_results])) for k in metrics},
         })
 
-    df = pd.DataFrame(results)
+    df = pd.DataFrame(rows)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     df.to_csv(os.path.join(OUTPUT_DIR, 'table_1_coverage.csv'), index=False)
 
