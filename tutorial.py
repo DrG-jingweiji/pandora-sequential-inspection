@@ -4,9 +4,19 @@ Tutorial: Solving a Single PSI Problem Instance
 
 This script walks through how to use the library to define and solve
 a single instance of the Pandora's Box Problem with Sequential
-Inspections (PSI).
+Inspections (PSI), as formulated in the paper:
 
-Run it from the project root:
+    "The Pandora's Box Problem with Sequential Inspections"
+    by Ali Aouad, Jingwei Ji, and Yaron Shaposhnik
+
+It demonstrates:
+  1. Defining boxes with type structure and inspection costs (Definition 1)
+  2. Computing opening thresholds σ^F, σ^P, σ^{F/P} (Eqs. 2–5)
+  3. Solving an instance optimally via dynamic programming (Eq. 1)
+  4. Evaluating heuristic policies (Section 5)
+  5. Tracing the optimal policy on a sample realization
+
+Run from the project root:
     python tutorial.py
 """
 

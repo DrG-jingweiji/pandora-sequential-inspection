@@ -66,9 +66,10 @@ def _estimate_task_counts(experiment, small):
     if experiment in ('all', 'coverage'):
         counts['coverage'] = len(dp_range) * n_small_inst
     if experiment in ('all', 'dp_comparison'):
-        counts['dp_comparison'] = len(dp_range) * n_small_inst
+        dp_comp_range = [N for N in dp_range if N <= 7] if not small else dp_range
+        counts['dp_comparison'] = len(dp_comp_range) * n_small_inst
     if experiment in ('all', 'policy_benchmark'):
-        bench_range = s_range + l_range if not small else list(range(2, 5)) + list(range(10, 12))
+        bench_range = s_range + list(range(10, 15)) if not small else list(range(2, 5)) + list(range(10, 12))
         counts['policy_benchmark'] = sum(
             n_small_inst if N <= DP_CUTOFF else n_large_inst
             for N in bench_range
@@ -153,7 +154,8 @@ def main():
             print("Experiment 2: Naive vs Structured DP (Table 2)")
             print("=" * 60)
             from experiments.exp_dp_comparison import run_dp_comparison
-            run_dp_comparison(n_range=n_range_small, n_instances=n_small,
+            dp_n_range = n_range_small if args.small else range(2, 8)
+            run_dp_comparison(n_range=dp_n_range, n_instances=n_small,
                               selected_boxes=selected_boxes,
                               n_workers=n_workers)
 
@@ -163,7 +165,7 @@ def main():
             print("Experiment 3: Policy benchmark (Tables 3, 4, EC.1)")
             print("=" * 60)
             from experiments.exp_policy_benchmark import run_policy_benchmark
-            n_range = None
+            n_range = list(SMALL_N_RANGE) + list(range(10, 15))
             if args.small:
                 n_range = list(range(2, 5)) + list(range(10, 12))
             run_policy_benchmark(n_range=n_range, n_instances_small=n_small,

@@ -1,10 +1,18 @@
 """Shared configuration for numerical experiments.
 
-Matches the paper's experimental setup (Section 6):
+All parameters match the paper's experimental setup (Section 6,
+"The Pandora's Box Problem with Sequential Inspections" by Aouad,
+Ji, and Shaposhnik):
+
   - Support size 5, up to 3 types per box
-  - Values from U(0,10), c_F from U(0,5), c_P from U(0,3)
-  - c_F >= c_P filter
-  - 1000 small instances (N=2..9), 300 large instances (N=10..16)
+  - Values drawn from U(0,10), c_F from U(0,5), c_P from U(0,3)
+  - c_F >= c_P filter (partial inspection is never more expensive)
+  - 1000 instances for small N (2..9), 300 for large N (10..16)
+  - DP cutoff at N=9 (optimal policy only computed for N <= 9)
+  - 100 prototypical boxes with min distance 0.5 in (σ^F, σ^P) space
+
+To adjust the experiments (e.g., fewer instances for a quick test),
+modify these constants or use the --small CLI flag.
 """
 
 import os

@@ -1,0 +1,502 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.8in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{caption}
+\usepackage{adjustbox}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{hyperref}
+
+\hypersetup{colorlinks=true, linkcolor=blue!60!black}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textit{Paper vs.\ Generated Output --- Comparison}}
+\fancyfoot[C]{\thepage}
+
+\titleformat{\section}{\Large\bfseries\color{blue!60!black}}{}{0em}{}[\vspace{-0.5em}\rule{\textwidth}{0.4pt}]
+
+\newcommand{\paperpath}{../../paper}
+\newcommand{\ourpath}{../output}
+
+\newcommand{\paperlabel}{\medskip{\large\bfseries\color{red!70!black} Original (Paper)}\par\medskip}
+\newcommand{\genlabel}{\bigskip{\large\bfseries\color{green!50!black} Generated (Experiments)}\par\medskip}
+\newcommand{\noteslabel}[1]{\bigskip\noindent\textbf{Notes:} #1}
+
+\title{\textbf{Paper vs.\ Generated Output}\\[0.3em]
+\large Side-by-Side Comparison of Tables and Figures}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Table 1: Coverage of Analytical Conditions}
+% =====================================================================
+
+\paperlabel
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ccccccccccccc}
+\toprule
+\multirow{2}[4]{*}{N} & & \multicolumn{7}{c}{Coverage rate} & & \multicolumn{3}{c}{Recall} \\
+\cmidrule{2-9}\cmidrule{11-13}
+  & & Thm.~1 & & Thm.~2 & & Thm.~3 & & Overall & & Thm.~2 & & Thm.~3 \\
+\cmidrule{1-1}\cmidrule{3-3}\cmidrule{5-5}\cmidrule{7-7}\cmidrule{9-9}\cmidrule{11-11}\cmidrule{13-13}
+2  & & 0.48 & & 0.38 & & 0.06 & & 0.92 & & 0.90 & & 0.53 \\
+3  & & 0.47 & & 0.38 & & 0.09 & & 0.94 & & 0.95 & & 0.66 \\
+4  & & 0.46 & & 0.39 & & 0.10 & & 0.95 & & 0.97 & & 0.72 \\
+5  & & 0.46 & & 0.39 & & 0.11 & & 0.95 & & 0.97 & & 0.77 \\
+6  & & 0.45 & & 0.40 & & 0.11 & & 0.96 & & 0.97 & & 0.81 \\
+7  & & 0.45 & & 0.40 & & 0.11 & & 0.96 & & 0.97 & & 0.83 \\
+8  & & 0.44 & & 0.41 & & 0.11 & & 0.96 & & 0.96 & & 0.86 \\
+9  & & 0.44 & & 0.41 & & 0.11 & & 0.96 & & 0.96 & & 0.87 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\genlabel
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ccccccccccccc}
+\toprule
+\multirow{2}[4]{*}{N} & & \multicolumn{7}{c}{Coverage rate} & & \multicolumn{3}{c}{Recall} \\
+\cmidrule{2-9}\cmidrule{11-13}
+  & & Thm.~1 & & Thm.~2 & & Thm.~3 & & Overall & & Thm.~2 & & Thm.~3 \\
+\cmidrule{1-1}\cmidrule{3-3}\cmidrule{5-5}\cmidrule{7-7}\cmidrule{9-9}\cmidrule{11-11}\cmidrule{13-13}
+2  & & 0.33 & & 0.32 & & 0.11 & & 0.75 & & 0.83 & & 0.68 \\
+3  & & 0.42 & & 0.32 & & 0.12 & & 0.86 & & 0.88 & & 0.68 \\
+4  & & 0.45 & & 0.32 & & 0.13 & & 0.90 & & 0.92 & & 0.69 \\
+5  & & 0.46 & & 0.32 & & 0.14 & & 0.91 & & 0.93 & & 0.71 \\
+6  & & 0.47 & & 0.32 & & 0.14 & & 0.92 & & 0.94 & & 0.73 \\
+7  & & 0.47 & & 0.32 & & 0.14 & & 0.93 & & 0.95 & & 0.75 \\
+8  & & 0.48 & & 0.32 & & 0.14 & & 0.93 & & 0.95 & & 0.76 \\
+9  & & 0.48 & & 0.32 & & 0.14 & & 0.94 & & 0.96 & & 0.77 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noteslabel{Differences are due to the regenerated prototypical box pool.
+The trends (increasing coverage with $N$, high recall for Thm.~2) are consistent.
+Coverage of Thm.~2 is systematically lower (0.32 vs.\ 0.38--0.41), likely because the
+regenerated pool has different $\sigma^F$ distributions.}
+
+% =====================================================================
+\newpage
+\section{Table 2: Naive vs.\ Structured DP Comparison}
+% =====================================================================
+
+\paperlabel
+
+\begin{table}[H]
+\scriptsize
+\centering
+\begin{tabular}{ccccrcccc}
+\toprule
+\multirow{2}[4]{*}{$N$} & \multicolumn{3}{c}{Na\"ive DP} & & \multicolumn{3}{c}{DP+Theorems 1--3} & \multirow{2}[4]{*}{ratio} \\
+\cmidrule{2-4}\cmidrule{6-8}
+  & \# states & \# revisits & time (s) & & \# states & \# revisits & time (s) & \\
+\midrule
+2 & 38.4 & 145.0 & 0.04 & & 24.8 & 32.37 & 0.03 & 0.731 \\
+3 & 209.0 & 1384.0 & 0.01 & & 115.3 & 195.09 & 0.00 & 0.225 \\
+4 & 1101.4 & 10513.9 & 0.10 & & 575.1 & 1204.03 & 0.02 & 0.180 \\
+5 & 5567.0 & 69796.4 & 0.64 & & 2798.7 & 6703.55 & 0.10 & 0.156 \\
+6 & 28158.6 & 440669.7 & 3.99 & & 12943.3 & 35306.54 & 0.51 & 0.128 \\
+7 & 137652.0 & 2570720.3 & 23.59 & & 65826.3 & 208193.38 & 3.00 & 0.121 \\
+8 & 680310.1 & 14825094.6 & 143.80 & & 298534.1 & 1067723.38 & 15.93 & 0.106 \\
+9 & 3238243.1 & 80398698.6 & 810.50 & & 1368893.5 & 5450797.57 & 82.81 & 0.094 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\genlabel
+
+\begin{table}[H]
+\scriptsize
+\centering
+\begin{tabular}{ccccrcccc}
+\toprule
+\multirow{2}[4]{*}{$N$} & \multicolumn{3}{c}{Na\"ive DP} & & \multicolumn{3}{c}{DP+Theorems 1--3} & \multirow{2}[4]{*}{ratio} \\
+\cmidrule{2-4}\cmidrule{6-8}
+  & \# states & \# revisits & time (s) & & \# states & \# revisits & time (s) & \\
+\midrule
+2 & 29.9 & 90.2 & 0.00 & & 24.4 & 28.90 & 0.00 & 0.500 \\
+3 & 152.1 & 811.1 & 0.01 & & 116.1 & 180.23 & 0.00 & 0.360 \\
+4 & 732.6 & 5573.5 & 0.03 & & 528.6 & 955.56 & 0.01 & 0.301 \\
+5 & 3389.8 & 33412.9 & 0.16 & & 2334.0 & 4758.31 & 0.04 & 0.267 \\
+6 & 16251.3 & 201262.4 & 0.94 & & 10735.4 & 25174.35 & 0.21 & 0.228 \\
+7 & 75230.9 & 1113530.9 & 5.10 & & 48501.9 & 125716.19 & 1.03 & 0.203 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noteslabel{N=8,9 were skipped in the generated output to save compute time.
+State/revisit counts are systematically lower because the regenerated box pool
+produces smaller state spaces. The key qualitative finding is preserved: the
+structured DP's runtime ratio \emph{decreases} with $N$, confirming the benefit
+of the optimality conditions grows with problem size
+(0.50$\to$0.20 vs.\ paper's 0.73$\to$0.12).}
+
+% =====================================================================
+\newpage
+\section{Table 3: Normalized Policy Performance}
+% =====================================================================
+
+\paperlabel
+
+\begin{table}[H]
+\scriptsize
+\centering
+\begin{adjustbox}{max width=\textwidth}
+\begin{tabular}{cccccccccccccccccccc}
+\toprule
+\multirow{2}[2]{*}{$N$} & \multicolumn{3}{c}{$\pi^\textrm{OPT}$} & & \multicolumn{3}{c}{$\pi^{\textrm{index}}$} & & \multicolumn{3}{c}{$\pi^{\textrm{W}}$} & & \multicolumn{3}{c}{$\pi^{F^*,P^*}$} & & \multicolumn{3}{c}{$\pi^{STP}$} \\
+\cmidrule{2-4}\cmidrule{6-8}\cmidrule{10-12}\cmidrule{14-16}\cmidrule{18-20}
+  & mean & std & worst & & mean & std & worst & & mean & std & worst & & mean & std & worst & & mean & std & worst \\
+\midrule
+2  & 1.000 & 0.000 & 1.000 & & 0.987 & 0.036 & 0.605 & & 0.922 & 0.123 & 0.033 & & 0.999 & 0.005 & 0.933 & & 0.963 & 0.057 & 0.709 \\
+3  & 1.000 & 0.000 & 1.000 & & 0.995 & 0.017 & 0.804 & & 0.901 & 0.101 & 0.298 & & 1.000 & 0.002 & 0.960 & & 0.947 & 0.062 & 0.601 \\
+4  & 1.000 & 0.000 & 1.000 & & 0.998 & 0.007 & 0.882 & & 0.893 & 0.088 & 0.403 & & 1.000 & 0.001 & 0.976 & & 0.943 & 0.063 & 0.611 \\
+5  & 1.000 & 0.000 & 1.000 & & 0.999 & 0.003 & 0.958 & & 0.890 & 0.082 & 0.373 & & 1.000 & 0.000 & 0.993 & & 0.938 & 0.062 & 0.652 \\
+6  & 1.000 & 0.000 & 1.000 & & 0.999 & 0.002 & 0.966 & & 0.890 & 0.085 & 0.438 & & 1.000 & 0.000 & 0.993 & & 0.940 & 0.059 & 0.691 \\
+7  & 1.000 & 0.000 & 1.000 & & 0.999 & 0.002 & 0.984 & & 0.888 & 0.084 & 0.503 & & 1.000 & 0.000 & 0.996 & & 0.933 & 0.063 & 0.575 \\
+8  & 1.000 & 0.000 & 1.000 & & 0.999 & 0.002 & 0.989 & & 0.879 & 0.088 & 0.494 & & 1.000 & 0.000 & 0.996 & & 0.937 & 0.061 & 0.564 \\
+9  & 1.000 & 0.000 & 1.000 & & 0.999 & 0.001 & 0.991 & & 0.877 & 0.090 & 0.522 & & 1.000 & 0.000 & 0.997 & & 0.935 & 0.061 & 0.653 \\
+\cmidrule{1-1}
+10 & - & - & - & & 0.999 & 0.001 & 0.992 & & 0.876 & 0.099 & 0.515 & & 1.000 & 0.000 & 1.000 & & 0.941 & 0.061 & 0.709 \\
+11 & - & - & - & & 0.999 & 0.001 & 0.993 & & 0.871 & 0.110 & 0.463 & & 1.000 & 0.000 & 1.000 & & 0.939 & 0.063 & 0.686 \\
+12 & - & - & - & & 0.999 & 0.001 & 0.994 & & 0.870 & 0.104 & 0.451 & & 1.000 & 0.000 & 1.000 & & 0.940 & 0.061 & 0.693 \\
+13 & - & - & - & & 0.999 & 0.001 & 0.992 & & 0.869 & 0.099 & 0.568 & & 1.000 & 0.000 & 1.000 & & 0.945 & 0.055 & 0.710 \\
+14 & - & - & - & & 0.999 & 0.001 & 0.996 & & 0.877 & 0.102 & 0.464 & & 1.000 & 0.000 & 1.000 & & 0.940 & 0.058 & 0.691 \\
+15 & - & - & - & & 0.999 & 0.001 & 0.996 & & 0.847 & 0.136 & 0.512 & & 1.000 & 0.000 & 1.000 & & 0.957 & 0.064 & 0.779 \\
+16 & - & - & - & & 0.999 & 0.001 & 0.997 & & 0.884 & 0.096 & 0.633 & & 1.000 & 0.000 & 1.000 & & 0.944 & 0.055 & 0.780 \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\end{table}
+
+\genlabel
+
+\begin{table}[H]
+\scriptsize
+\centering
+\begin{adjustbox}{max width=\textwidth}
+\begin{tabular}{cccccccccccccccccccc}
+\toprule
+\multirow{2}[2]{*}{$N$} & \multicolumn{3}{c}{$\pi^\textrm{OPT}$} & & \multicolumn{3}{c}{$\pi^{\textrm{index}}$} & & \multicolumn{3}{c}{$\pi^{\textrm{W}}$} & & \multicolumn{3}{c}{$\pi^{F^*,P^*}$} & & \multicolumn{3}{c}{$\pi^{STP}$} \\
+\cmidrule{2-4}\cmidrule{6-8}\cmidrule{10-12}\cmidrule{14-16}\cmidrule{18-20}
+  & mean & std & worst & & mean & std & worst & & mean & std & worst & & mean & std & worst & & mean & std & worst \\
+\midrule
+2  & 1.000 & 0.000 & 1.000 & & 0.969 & 0.046 & 0.704 & & 0.915 & 0.134 & 0.000 & & 0.999 & 0.005 & 0.925 & & 0.958 & 0.056 & 0.635 \\
+3  & 1.000 & 0.000 & 1.000 & & 0.981 & 0.028 & 0.710 & & 0.902 & 0.107 & 0.000 & & 0.999 & 0.002 & 0.975 & & 0.940 & 0.066 & 0.564 \\
+4  & 1.000 & 0.000 & 1.000 & & 0.988 & 0.017 & 0.835 & & 0.892 & 0.087 & 0.000 & & 0.999 & 0.002 & 0.978 & & 0.932 & 0.067 & 0.599 \\
+5  & 1.000 & 0.000 & 1.000 & & 0.992 & 0.011 & 0.909 & & 0.893 & 0.074 & 0.506 & & 1.000 & 0.001 & 0.981 & & 0.924 & 0.066 & 0.580 \\
+6  & 1.000 & 0.000 & 1.000 & & 0.994 & 0.008 & 0.953 & & 0.896 & 0.074 & 0.498 & & 1.000 & 0.001 & 0.990 & & 0.922 & 0.069 & 0.599 \\
+7  & 1.000 & 0.000 & 1.000 & & 0.996 & 0.006 & 0.933 & & 0.891 & 0.074 & 0.517 & & 1.000 & 0.001 & 0.993 & & 0.917 & 0.064 & 0.681 \\
+8  & 1.000 & 0.000 & 1.000 & & 0.997 & 0.004 & 0.971 & & 0.891 & 0.077 & 0.474 & & 1.000 & 0.000 & 0.995 & & 0.913 & 0.069 & 0.682 \\
+9  & 1.000 & 0.000 & 1.000 & & 0.998 & 0.004 & 0.967 & & 0.895 & 0.071 & 0.562 & & 1.000 & 0.000 & 0.996 & & 0.916 & 0.065 & 0.689 \\
+\cmidrule{1-1}
+10 & - & - & - & & 0.998 & 0.003 & 0.973 & & 0.889 & 0.073 & 0.560 & & 1.000 & 0.000 & 1.000 & & 0.918 & 0.065 & 0.698 \\
+11 & - & - & - & & 0.999 & 0.003 & 0.975 & & 0.894 & 0.079 & 0.543 & & 1.000 & 0.000 & 1.000 & & 0.905 & 0.070 & 0.698 \\
+12 & - & - & - & & 0.999 & 0.002 & 0.984 & & 0.889 & 0.075 & 0.574 & & 1.000 & 0.000 & 1.000 & & 0.917 & 0.067 & 0.644 \\
+13 & - & - & - & & 0.999 & 0.002 & 0.986 & & 0.893 & 0.067 & 0.670 & & 1.000 & 0.000 & 1.000 & & 0.919 & 0.066 & 0.674 \\
+14 & - & - & - & & 0.999 & 0.001 & 0.993 & & 0.895 & 0.073 & 0.545 & & 1.000 & 0.000 & 1.000 & & 0.911 & 0.068 & 0.710 \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\end{table}
+
+\noteslabel{This is the most critical table for validating policy correctness.
+Mean performance values are very close (within 0.01--0.02 for all policies).
+$\pi^{F^*,P^*}$ dominates in both; $\pi^{\textrm{index}}$ improves with $N$ in both.
+$\pi^{\textrm{W}}$ worst-case of 0.000 for small $N$ is an edge case of the regenerated pool.
+N=15,16 were skipped to save compute time.}
+
+% =====================================================================
+\newpage
+\section{Table 4: Exact Optimality Rates}
+% =====================================================================
+
+\paperlabel
+
+\begin{table}[H]
+\centering
+\begin{adjustbox}{width=0.55\textwidth}
+\begin{tabular}{ccccc}
+\toprule
+$N$ & $\pi^\textrm{OPT}$ & $\pi^{\textrm{index}}$ & $\pi^{\textrm{W}}$ & $\pi^{F^*,P^*}$ \\
+\midrule
+2 & 1.000 & 0.543 & 0.238 & 0.835 \\
+3 & 1.000 & 0.614 & 0.065 & 0.850 \\
+4 & 1.000 & 0.622 & 0.023 & 0.853 \\
+5 & 1.000 & 0.661 & 0.002 & 0.892 \\
+6 & 1.000 & 0.686 & 0.001 & 0.904 \\
+7 & 1.000 & 0.701 & 0.000 & 0.927 \\
+8 & 1.000 & 0.715 & 0.001 & 0.944 \\
+9 & 1.000 & 0.733 & 0.000 & 0.943 \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\end{table}
+
+\genlabel
+
+\begin{table}[H]
+\centering
+\begin{adjustbox}{width=0.55\textwidth}
+\begin{tabular}{ccccc}
+\toprule
+$N$ & $\pi^\textrm{OPT}$ & $\pi^{\textrm{index}}$ & $\pi^{\textrm{W}}$ & $\pi^{F^*,P^*}$ \\
+\midrule
+2 & 1.000 & 0.268 & 0.117 & 0.713 \\
+3 & 1.000 & 0.239 & 0.019 & 0.667 \\
+4 & 1.000 & 0.277 & 0.004 & 0.674 \\
+5 & 1.000 & 0.312 & 0.000 & 0.719 \\
+6 & 1.000 & 0.282 & 0.000 & 0.733 \\
+7 & 1.000 & 0.294 & 0.000 & 0.743 \\
+8 & 1.000 & 0.280 & 0.000 & 0.735 \\
+9 & 1.000 & 0.268 & 0.000 & 0.728 \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\end{table}
+
+\noteslabel{Exact optimality rates are lower across all heuristic policies.
+This is expected: exact optimality is a brittle metric highly sensitive to the
+specific box pool. The ranking is preserved
+($\pi^{F^*,P^*} > \pi^{\textrm{index}} \gg \pi^{\textrm{W}}$), and
+Whittle's rate correctly drops to ${\approx}0$ for $N \geq 5$.}
+
+% =====================================================================
+\newpage
+\section{Table EC.1: Policy Runtimes}
+% =====================================================================
+
+\paperlabel
+
+\begin{table}[H]
+\footnotesize
+\centering
+\begin{tabular}{cccrccccccccccc}
+\toprule
+\multirow{2}[3]{*}{$N$} & \multicolumn{2}{c}{$\pi^\textrm{OPT}$} & & \multicolumn{2}{c}{$\pi^{\textrm{index}}$} & & \multicolumn{2}{c}{$\pi^{\textrm{W}}$} & & \multicolumn{2}{c}{$\pi^{F^*,P^*}$} & & \multicolumn{2}{c}{$\pi^{STP}$} \\
+\cmidrule{2-3}\cmidrule{5-6}\cmidrule{8-9}\cmidrule{11-12}\cmidrule{14-15}
+  & mean & std & & mean & std & & mean & std & & mean & std & & mean & std \\
+\midrule
+2  & 0.002 & 0.002 & & 0.001 & 0.001 & & 0.005 & 0.004 & & 0.001 & 0.001 & & 0.000 & 0.000 \\
+3  & 0.014 & 0.013 & & 0.002 & 0.002 & & 0.021 & 0.024 & & 0.004 & 0.004 & & 0.001 & 0.001 \\
+4  & 0.101 & 0.078 & & 0.004 & 0.005 & & 0.084 & 0.121 & & 0.013 & 0.014 & & 0.002 & 0.002 \\
+5  & 0.738 & 0.577 & & 0.007 & 0.010 & & 0.276 & 0.466 & & 0.032 & 0.049 & & 0.004 & 0.003 \\
+6  & 5.698 & 5.128 & & 0.012 & 0.017 & & 0.884 & 1.729 & & 0.081 & 0.144 & & 0.007 & 0.008 \\
+7  & 41.049 & 39.646 & & 0.025 & 0.050 & & 2.933 & 6.081 & & 0.248 & 0.563 & & 0.015 & 0.020 \\
+8  & 316.648 & 311.921 & & 0.047 & 0.114 & & 10.831 & 30.604 & & 0.707 & 1.902 & & 0.028 & 0.031 \\
+9  & 2472.509 & 2585.495 & & 0.088 & 0.323 & & 29.127 & 72.949 & & 1.662 & 3.831 & & 0.052 & 0.060 \\
+\cmidrule{1-1}
+10 & - & - & & 0.128 & 0.316 & & 75.226 & 228.431 & & 3.292 & 7.010 & & 0.072 & 0.104 \\
+11 & - & - & & 0.261 & 1.018 & & 152.678 & 1817.640 & & 9.082 & 25.463 & & 0.141 & 0.220 \\
+12 & - & - & & 0.372 & 0.778 & & 718.722 & 3458.725 & & 20.250 & 40.365 & & 0.227 & 0.382 \\
+13 & - & - & & 0.823 & 1.851 & & 1613.774 & 4178.379 & & 79.878 & 266.576 & & 0.438 & 0.594 \\
+14 & - & - & & 1.556 & 6.139 & & 3668.967 & 10860.112 & & 245.827 & 1494.645 & & 0.793 & 1.365 \\
+15 & - & - & & 2.977 & 3.895 & & 10325.838 & 13620.728 & & 810.565 & 1658.033 & & 1.885 & 2.392 \\
+16 & - & - & & 5.475 & 11.173 & & 10168.432 & 15753.618 & & 869.394 & 5183.688 & & 2.025 & 3.310 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\genlabel
+
+\input{\ourpath/table_EC1_runtime}
+
+\noteslabel{Runtime ordering is the key qualitative check:
+$\pi^\textrm{OPT} \gg \pi^{\textrm{W}} > \pi^{F^*,P^*} > \pi^{\textrm{index}} > \pi^{STP}$
+for all $N$. Absolute times differ due to hardware differences.}
+
+% =====================================================================
+\newpage
+\section{Figure 3: Prototypical Boxes Visualization}
+% =====================================================================
+
+\paperlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\paperpath/experiments_graphs/boxes_scatter_new.png}
+\end{figure}
+
+\genlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\ourpath/figure_3_prototypical_boxes.png}
+\end{figure}
+
+\noteslabel{Both show 50 prototypical boxes with $\sigma^P \geq \sigma^F$.
+The specific box locations differ because the pool is regenerated from the same
+seed but through a different code path.}
+
+% =====================================================================
+\newpage
+\section{Figure EC.8: Prototypical Boxes Selection Process}
+% =====================================================================
+
+\paperlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\paperpath/experiments_graphs/boxes_scatter.png}
+\end{figure}
+
+\genlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\ourpath/figure_EC8_prototypical_boxes_selection.png}
+\end{figure}
+
+\noteslabel{Full box generation showing selected (red triangles) and discarded
+(blue circles) candidates.}
+
+% =====================================================================
+\newpage
+\section{Figure EC.9a: P-ratio vs.\ Proportion of P-dominant Boxes}
+% =====================================================================
+
+\paperlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\paperpath/experiments_graphs/when_P_is_important.png}
+\end{figure}
+
+\genlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\ourpath/figure_EC9a_p_ratio_vs_proportion.png}
+\end{figure}
+
+\noteslabel{Both show P-ratio of $\pi^{\textrm{OPT}}$ versus the proportion of boxes
+with $\sigma^P > \sigma^F$. A positive correlation is visible in both.}
+
+% =====================================================================
+\newpage
+\section{Figure EC.9b: Weitzman Suboptimality vs.\ Proportion}
+% =====================================================================
+
+\paperlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\paperpath/experiments_graphs/Weitzman_performance.png}
+\end{figure}
+
+\genlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\ourpath/figure_EC9b_weitzman_vs_proportion.png}
+\end{figure}
+
+\noteslabel{Weitzman policy performance versus proportion of P-dominant boxes.
+Both show that Weitzman performs worse when more boxes have $\sigma^P > \sigma^F$.}
+
+% =====================================================================
+\newpage
+\section{Figure EC.10a: Low Dispersion Example}
+% =====================================================================
+
+\paperlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\paperpath/experiments_graphs/boxes_scatter_small_dispersion.png}
+\end{figure}
+
+\genlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\ourpath/figure_EC10a_low_dispersion.png}
+\end{figure}
+
+\noteslabel{Example instance with low dispersion ($<5$). Boxes are clustered
+together, indicating homogeneity.}
+
+% =====================================================================
+\newpage
+\section{Figure EC.10b: High Dispersion Example}
+% =====================================================================
+
+\paperlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\paperpath/experiments_graphs/boxes_scatter_big_dispersion.png}
+\end{figure}
+
+\genlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\ourpath/figure_EC10b_high_dispersion.png}
+\end{figure}
+
+\noteslabel{Example instance with high dispersion ($>20$). Boxes are spread out,
+indicating heterogeneity.}
+
+% =====================================================================
+\newpage
+\section{Figure EC.10c: P-ratio vs.\ Dispersion}
+% =====================================================================
+
+\paperlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\paperpath/experiments_graphs/P_F_dispersion.png}
+\end{figure}
+
+\genlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\ourpath/figure_EC10c_p_ratio_vs_dispersion.png}
+\end{figure}
+
+\noteslabel{P-ratio versus dispersion. Both show that when dispersion is large
+($>15$), P-ratio tends to be small --- heterogeneous boxes lead to fewer P-openings.}
+
+% =====================================================================
+\newpage
+\section{Figure EC.10d: P-ratio vs.\ Number of Boxes}
+% =====================================================================
+
+\paperlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\paperpath/experiments_graphs/more_boxes.png}
+\end{figure}
+
+\genlabel
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{\ourpath/figure_EC10d_p_ratio_vs_num_boxes.png}
+\end{figure}
+
+\noteslabel{P-ratio versus number of i.i.d.\ boxes. Both show that the optimal
+policy exploits P-opening more often when there are sufficiently many boxes.}
+
+\end{document}

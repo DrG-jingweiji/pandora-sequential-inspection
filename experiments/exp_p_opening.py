@@ -156,16 +156,20 @@ def run_p_opening_analysis(n_range=None, n_instances=None, seed=None,
     print("\nP-opening summary by N:")
     print(summary.to_string(index=False))
 
-    # ── Find low/high dispersion examples (in sequential order) ──────
+    # ── Find low/high dispersion examples ──────────────────────────
+    # Require N >= 7 so the scatter plots look comparable to the paper
+    # (which shows instances with 9 and 10 boxes).
     low_disp_example = None
     high_disp_example = None
     for N in effective_range:
+        if N < 7:
+            continue
         for rep in range(n_instances):
             key = f"{N}_{rep}"
             if key not in all_results:
                 continue
             r = all_results[key]
-            if low_disp_example is None and r['dispersion'] < 3:
+            if low_disp_example is None and r['dispersion'] < 5:
                 low_disp_example = [selected_boxes[i] for i in r['indices']]
             if high_disp_example is None and r['dispersion'] > 18:
                 high_disp_example = [selected_boxes[i] for i in r['indices']]

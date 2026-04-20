@@ -4,13 +4,13 @@ Heuristic policies for the PSI problem.
 Each policy is a callable: policy_fn(solver, state) -> action string.
 Action format: "STOP", "F_{i}", "F|{t}_{i}", "P_{i}" (i is 1-indexed).
 
-Policies implemented:
-  - index_policy: Greedy threshold index (Section 6)
+Policies implemented (see paper Section 5):
+  - index_policy: Greedy threshold index (Section 5.1)
   - whittle_policy: One-step lookahead using Whittle integral J^W (Eq. 11)
-  - stp_policy: Single Test Policy — myopic single-box improvement (Section 6)
-  - committing_policy: Evaluate a fixed (F, P) partition (Algorithm 1)
-  - best_committing_policy: Enumerate all 2^N partitions, return best
-  - weitzman_policy: Committing with all boxes in F (ignore P-opening)
+  - stp_policy: Single Test Policy — myopic single-box improvement (Section 5.3)
+  - committing_policy: Evaluate a fixed (F, P) partition (Algorithm 1, Section 5.4)
+  - best_committing_policy: Enumerate all 2^N partitions, return best (π^{F*,P*})
+  - weitzman_policy: Committing with all boxes in F (ignores P-opening)
 """
 
 import copy

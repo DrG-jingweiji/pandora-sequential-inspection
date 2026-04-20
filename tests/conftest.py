@@ -1,4 +1,9 @@
-"""Shared test fixtures for loading old test instances."""
+"""Shared test fixtures for loading reference test instances.
+
+The unit tests compare against pre-computed reference instances stored
+in the old code directory. If the reference data is not available,
+tests that depend on it are skipped automatically.
+"""
 
 import json
 import os

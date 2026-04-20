@@ -1,15 +1,18 @@
 """
 Box model for the Pandora's Box Problem with Sequential Inspections (PSI).
 
-Each box i has:
+Each box i has (Definition 1 in the paper):
   - Random prize V_i with discrete support (value_list)
   - Discrete type T_i with support Gamma_i (type_probs)
   - Conditional distributions V_i | T_i = t  (cond_prob_matrix)
-  - F-opening cost c_F (full inspection)
-  - P-opening cost c_P (partial inspection, reveals type)
+  - F-opening cost c_F (full inspection, reveals value)
+  - P-opening cost c_P (partial inspection, reveals type only)
 
-Notation follows the paper:
-  Old code S/W (strong/weak) = paper F/P (full/partial).
+Opening thresholds (Eqs. 2–5):
+  - σ^F  (f_threshold):          F-opening threshold
+  - σ^{F|t} (f_thresholds_by_type): conditional F-threshold given type t
+  - σ^P  (p_threshold):          P-opening threshold
+  - σ^{F/P} (fp_threshold):      FP-threshold
 """
 
 import numpy as np

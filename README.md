@@ -1,161 +1,280 @@
-# Pandora's Box Problem with Sequential Inspections (PSI)
+# Pandora's Box Problem with Sequential Inspections
 
-Numerical experiments for *The Pandora's Box Problem with Sequential Inspections*
-by Ali Aouad, Jingwei Ji, and Yaron Shaposhnik.
+This repository contains Python code for the numerical experiments in:
 
-## Structure
+> **The Pandora's Box Problem with Sequential Inspections**
+> Ali Aouad, Jingwei Ji, and Yaron Shaposhnik
+> *Operations Research*
 
-- `pandora/` — Core library
-  - `box.py` — Box class with opening thresholds (Definition 1, Eqs. 2–5)
-  - `solver.py` — DP solver: naive Bellman (Eq. 1) and structured DP (Theorems 1–3)
-  - `policies.py` — Heuristic policies: index, Whittle, STP, committing, Weitzman
-  - `instance_generator.py` — Instance generation and prototypical box pools
-  - `utils.py` — Helper functions (dispersion, P-dominant ratio)
-- `experiments/` — Experiment runners replicating paper tables/figures
-  - `config.py` — Shared configuration (instance counts, ranges, defaults)
-  - `parallel.py` — Parallel execution engine with crash-recovery checkpointing
-  - `exp_coverage.py` — Theorem coverage analysis (Table 1)
-  - `exp_dp_comparison.py` — Naive vs structured DP (Table 2)
-  - `exp_policy_benchmark.py` — Policy benchmark (Tables 3, 4, EC.1)
-  - `exp_p_opening.py` — P-opening analysis (Figures EC.9, EC.10)
-  - `formatting.py` — LaTeX table formatters
-  - `figures.py` — Matplotlib figure generators
-  - `run_all.py` — CLI entry point
-- `tests/` — Validation tests comparing old and new code output
-- `output/` — Generated results (CSVs, LaTeX, figures)
-- `tutorial.py` — Walkthrough: define boxes, solve an instance, compare policies
+The code provides:
+- A **solver library** (`pandora/`) implementing optimal and heuristic policies for the PSI problem
+- **Experiment runners** (`experiments/`) that reproduce all tables and figures from the paper
+- **Tests and validation** (`tests/`) comparing generated output against the paper's published results
 
-## Output
-
-The experiments produce the following files in `output/`:
-
-| File | Paper reference |
-|------|----------------|
-| `table_1_coverage.csv/.tex` | Table 1 — Coverage of analytical conditions |
-| `table_2_dp_comparison.csv/.tex` | Table 2 — Naive vs structured DP |
-| `table_3_performance.csv/.tex` | Table 3 — Policy performance |
-| `table_4_exact_optimality.csv/.tex` | Table 4 — Exact optimality rates |
-| `table_EC1_runtime.csv/.tex` | Table EC.1 — Runtime comparison |
-| `figure_3_prototypical_boxes.png` | Figure 3 — Prototypical boxes (P-dominant pool) |
-| `figure_EC8_prototypical_boxes_selection.png` | Figure EC.8 — Box selection (mixed pool) |
-| `figure_EC9a_p_ratio_vs_proportion.png` | Figure EC.9 left — P-ratio vs proportion |
-| `figure_EC9b_weitzman_vs_proportion.png` | Figure EC.9 right — Weitzman suboptimality |
-| `figure_EC10a_low_dispersion.png` | Figure EC.10 top-left — Low-dispersion example |
-| `figure_EC10b_high_dispersion.png` | Figure EC.10 top-right — High-dispersion example |
-| `figure_EC10c_p_ratio_vs_dispersion.png` | Figure EC.10 bottom-left — P-ratio vs dispersion |
-| `figure_EC10d_p_ratio_vs_num_boxes.png` | Figure EC.10 bottom-right — P-ratio vs N (i.i.d.) |
-| `p_opening_analysis.csv` | Per-instance P-opening metrics |
-
-## Usage
+## Quick Start
 
 ```bash
+# Install dependencies
 pip install -r requirements.txt
 
-# Solve a single instance (tutorial walkthrough)
+# Run the tutorial to see how the library works
 python tutorial.py
 
-# Run all experiments (3 parallel workers by default)
-python -m experiments.run_all
+# Run all numerical experiments (takes ~50 hours with 4 workers)
+python -m experiments.run_all --workers 4
 
-# Run a specific experiment
-python -m experiments.run_all --experiment coverage
-
-# Quick test run with fewer instances
+# Quick test run (~30 min) with smaller instances
 python -m experiments.run_all --small
-
-# Run tests
-pytest tests/ -v
 ```
 
-### Parallel Execution
+## Repository Structure
 
-Problem instances are solved in parallel using Python's `ProcessPoolExecutor`.
-The number of worker processes defaults to 3 and can be changed with `--workers`:
+```
+pandora/                    Core solver library
+├── box.py                  Box class with opening thresholds (Definition 1, Eqs. 2–5)
+├── solver.py               DP solver: naive Bellman (Eq. 1) and structured DP (Theorems 1–3)
+├── policies.py             Heuristic policies: index, Whittle, STP, committing, Weitzman
+├── instance_generator.py   Random instance generation and prototypical box pools
+└── utils.py                Helper functions (dispersion metric, P-dominant ratio)
 
-```bash
-# Use 6 parallel workers
-python -m experiments.run_all --workers 6
+experiments/                Experiment runners (paper Section 6 and e-companion)
+├── config.py               Parameters matching the paper's experimental setup
+├── parallel.py             Parallel execution engine with crash-recovery checkpointing
+├── exp_coverage.py         Theorem coverage analysis → Table 1
+├── exp_dp_comparison.py    Naive vs structured DP → Table 2
+├── exp_policy_benchmark.py Policy benchmark → Tables 3, 4, EC.1
+├── exp_p_opening.py        P-opening analysis → Figures EC.9, EC.10
+├── figures.py              Matplotlib figure generators
+├── formatting.py           LaTeX table formatters
+└── run_all.py              CLI entry point
 
-# Run sequentially (useful for debugging)
-python -m experiments.run_all --workers 1
+tests/                      Validation and comparison
+├── test_box_thresholds.py  Unit tests for threshold computations
+├── test_dp_values.py       Unit tests for DP optimal values
+├── test_dp_efficiency.py   Tests for structured DP efficiency gains
+├── test_policies.py        Unit tests for heuristic policies
+├── validate_against_paper.py  Compares generated tables to paper values with tolerances
+├── comparison.tex          LaTeX source for visual comparison document
+└── comparison.pdf          Paper figures/tables vs generated output (precompiled)
+
+tutorial.py                 Step-by-step walkthrough for solving a single instance
+requirements.txt            Python dependencies
 ```
 
-### Crash Recovery
+## Using the Library
 
-Intermediate results are checkpointed to `output/.checkpoints/` as JSONL files.
-If a run is interrupted (crash, Ctrl-C, system restart), simply re-run the same
-command and it will **automatically resume** from where it stopped:
+The tutorial (`tutorial.py`) demonstrates the full workflow. Here is a condensed version:
+
+```python
+from pandora.box import Box
+from pandora.solver import PandoraSolver
+from pandora.policies import index_policy, best_committing_policy
+
+# Define a box: 2 values, 2 types, with inspection costs
+box = Box(
+    value_list=[2.0, 8.0],
+    cond_prob_matrix=[[0.8, 0.2], [0.3, 0.7]],  # Pr[V=v | Type=t]
+    type_probs=[0.6, 0.4],
+    c_P=0.5,   # cost of partial inspection (reveals type)
+    c_F=1.5,   # cost of full inspection (reveals value)
+)
+
+# Check thresholds (Eqs. 2–5 in the paper)
+print(box.f_threshold)   # σ^F
+print(box.p_threshold)   # σ^P
+print(box.fp_threshold)  # σ^{F/P}
+
+# Solve a 3-box instance optimally via DP
+solver = PandoraSolver([box1, box2, box3])
+opt_value = solver.solve_dp()
+
+# Evaluate a heuristic policy
+idx_value = solver.evaluate_policy(index_policy)
+print(f"Index policy achieves {idx_value / opt_value:.1%} of optimal")
+
+# Find the best committing policy (enumerates F/P partitions)
+partition, com_value = best_committing_policy(solver)
+```
+
+### Key Classes
+
+| Class / Function | Paper Reference | Description |
+|---|---|---|
+| `Box` | Definition 1, Eqs. 2–5 | A single box with type structure, inspection costs, and computed thresholds |
+| `PandoraSolver` | Eq. 1, Theorems 1–3 | Solves a PSI instance via naive or structured DP |
+| `index_policy` | Section 5.1 | Index-based heuristic using threshold ordering |
+| `whittle_policy` | Section 5.2 | Whittle's integral policy |
+| `stp_policy` | Section 5.3 | Single-type policy |
+| `best_committing_policy` | Section 5.4 | Best committing policy π^{F*,P*} |
+| `weitzman_policy` | Section 3 | Weitzman's original policy (ignores P-opening) |
+
+### Generating Random Instances
+
+```python
+from pandora.instance_generator import generate_prototypical_boxes
+
+# Generate a pool of diverse prototypical boxes (same method as the paper)
+boxes = generate_prototypical_boxes(
+    n_boxes=100,          # pool size
+    min_distance=0.5,     # diversity threshold in (σ^F, σ^P) space
+    require_p_dominant=True,  # only keep boxes with σ^P > σ^F
+)
+
+# Sample N boxes from the pool for an instance
+import numpy as np
+rng = np.random.default_rng(42)
+instance = [boxes[i] for i in rng.integers(0, len(boxes), size=5)]
+```
+
+## Reproducing the Paper's Experiments
+
+### What Gets Generated
+
+| Output File | Paper Reference |
+|---|---|
+| `table_1_coverage.csv/.tex` | Table 1 — Coverage rates of Theorems 1–3 |
+| `table_2_dp_comparison.csv/.tex` | Table 2 — Naive vs structured DP (states, revisits, runtime) |
+| `table_3_performance.csv/.tex` | Table 3 — Normalized policy performance (mean, std, worst) |
+| `table_4_exact_optimality.csv/.tex` | Table 4 — Fraction of instances achieving optimality |
+| `table_EC1_runtime.csv/.tex` | Table EC.1 — Policy runtimes |
+| `figure_3_prototypical_boxes.png` | Figure 3 — Prototypical box scatter plot |
+| `figure_EC8_*.png` | Figure EC.8 — Box selection visualization |
+| `figure_EC9a_*.png`, `figure_EC9b_*.png` | Figure EC.9 — P-ratio and Weitzman performance |
+| `figure_EC10a_*.png` through `figure_EC10d_*.png` | Figure EC.10 — Dispersion and "more boxes" analysis |
+
+All output is written to the `output/` directory.
+
+### Running Experiments
 
 ```bash
-# First run — interrupted at 40%
+# Full run (all experiments)
 python -m experiments.run_all
-# ^C
 
-# Second run — resumes from the checkpoint
-python -m experiments.run_all
-#  Checkpoint: 3200/8000 done, 4800 remaining
+# Run a single experiment
+python -m experiments.run_all -e coverage          # Table 1
+python -m experiments.run_all -e dp_comparison      # Table 2
+python -m experiments.run_all -e policy_benchmark   # Tables 3, 4, EC.1
+python -m experiments.run_all -e p_opening          # Figures EC.9, EC.10
+python -m experiments.run_all -e box_scatter        # Figures 3, EC.8
 ```
 
-To discard all checkpoints and start fresh:
-
-```bash
-python -m experiments.run_all --fresh
-```
-
-**Note:** Checkpoints are tied to the experiment parameters (N range, instance
-count, seed). If you change parameters (e.g., switch between `--small` and full
-runs), use `--fresh` to avoid mixing results from different configurations.
-
-## CLI Reference
+### CLI Options
 
 | Flag | Description |
-|------|-------------|
-| `--experiment`, `-e` | Run a specific experiment: `coverage`, `dp_comparison`, `policy_benchmark`, `p_opening`, `box_scatter`, or `all` (default) |
+|---|---|
+| `--experiment`, `-e` | Run a specific experiment (`coverage`, `dp_comparison`, `policy_benchmark`, `p_opening`, `box_scatter`, or `all`) |
 | `--small` | Quick test with reduced N range and fewer instances |
-| `--workers N`, `-w N` | Number of parallel processes (default: 3) |
-| `--fresh` | Clear checkpoints before running |
+| `--workers N`, `-w N` | Number of parallel worker processes (default: 3) |
+| `--fresh` | Clear all checkpoints and start from scratch |
 
-## Prototypical Box Pools
+### Parallel Execution and Crash Recovery
+
+Experiments run in parallel using Python's `ProcessPoolExecutor`. Intermediate
+results are checkpointed to `output/.checkpoints/` as JSONL files. If a run is
+interrupted (crash, Ctrl-C, SSH disconnect), re-running the same command
+automatically resumes from the last checkpoint:
+
+```bash
+python -m experiments.run_all --workers 4    # interrupted at 40%
+python -m experiments.run_all --workers 4    # resumes from checkpoint
+```
+
+Use `--fresh` to discard checkpoints and restart. This is necessary when
+changing parameters (e.g., switching between `--small` and full runs).
+
+### Runtime Estimates
+
+With 4 parallel workers on a modern machine:
+
+| Experiment | Approximate Time |
+|---|---|
+| Coverage (Table 1) | ~2 hours |
+| DP comparison (Table 2, N≤7) | ~3 hours |
+| Policy benchmark (Tables 3, 4, EC.1, N≤14) | ~45 hours |
+| P-opening analysis (Figures EC.9, EC.10) | ~2 hours |
+| **Total** | **~50 hours** |
+
+The `--small` flag reduces this to ~30 minutes for a quick sanity check.
+
+### Prototypical Box Pools
 
 The experiments use two separate pools of prototypical boxes, generated with
 the same seed but different selection criteria:
 
 1. **P-dominant pool** (`require_p_dominant=True`) — Only boxes with σ^P > σ^F
-   are selected. Used for the main experiments (Tables 1–4, EC.1) and Figure 3.
-2. **Mixed pool** (`require_p_dominant=False`) — Boxes are selected by distance
-   in (σ^F, σ^P) space regardless of which threshold is larger. Used for the
-   P-opening analysis (Figures EC.8–EC.10) where the relationship between σ^P
-   and σ^F is the quantity of interest.
+   are kept. Used for the main experiments (Tables 1–4, EC.1) and Figure 3.
+2. **Mixed pool** (`require_p_dominant=False`) — All boxes regardless of which
+   threshold is larger. Used for the P-opening analysis (Figures EC.8–EC.10),
+   where the relationship between σ^P and σ^F is the quantity of interest.
 
 Both pools apply the same distance-based diversity criterion and positive-threshold
-filter. The distinction matches the original experimental setup in the paper.
+filter. This matches the original experimental design in the paper.
 
-## Experiment Details
+## Validating Results
 
-### "More Boxes" Experiment (Figure EC.10d)
+After running experiments, you can compare the output against the paper's
+published values:
 
-This experiment uses a single fixed box specification (3 types, 6 values) with
-c_F = 3.0 and varies c_P from 0.1 to 0.6 in 6 steps. For each c_P level,
-N = 1, ..., 7 identical copies of the box are created, the optimal policy is
-computed via DP, and the P-ratio N_P / (N_P + N_F) is plotted. The resulting
-figure shows one line per c_P level.
+```bash
+# Automated tolerance-based comparison against paper tables
+python tests/validate_against_paper.py
+
+# Visual side-by-side comparison (precompiled PDF in tests/)
+# To regenerate after re-running experiments:
+cd tests && tectonic comparison.tex
+```
+
+The visual comparison document (`tests/comparison.pdf`) places each paper table
+and figure above the corresponding generated output for easy manual inspection.
+
+**Note on reproducibility:** Results will not match the paper exactly because the
+prototypical box pool is regenerated (same seed, different code path). Policy
+performance statistics (Table 3) match closely; metrics sensitive to the specific
+box pool (Tables 1, 2, 4) show larger deviations. See the comparison document
+for details.
+
+## Running Unit Tests
+
+```bash
+pytest tests/ -v
+```
+
+The unit tests validate threshold computations, DP values, structured DP
+efficiency, and heuristic policy implementations against reference instances.
+
+## Notation Reference
+
+The code uses the paper's notation throughout:
+
+| Symbol | Code | Meaning |
+|---|---|---|
+| c_F | `c_F` | F-opening (full inspection) cost |
+| c_P | `c_P` | P-opening (partial inspection) cost |
+| σ^F | `f_threshold` | F-threshold (Eq. 2) |
+| σ^{F\|t} | `f_thresholds_by_type[t]` | Conditional F-threshold (Eq. 3) |
+| σ^P | `p_threshold` | P-threshold (Eq. 4) |
+| σ^{F/P} | `fp_threshold` | FP-threshold (Eq. 5) |
 
 ### Dispersion Metric
 
 The dispersion measure used in Figures EC.10a–c is Var(σ^F) + Var(σ^P) computed
 across the boxes in each instance. The paper's text describes this as "sum of
-standard deviations", but both the original and new code compute the sum of
-*variances*, which is the formula used to generate the published figures.
+standard deviations," but the code computes the sum of variances, which matches
+the formula used to generate the published figures.
 
-## Notation
+## Experimental Parameters
 
-The code uses the paper's F/P notation throughout:
+All parameters are defined in `experiments/config.py` and match the paper's
+Section 6:
 
-| Symbol | Meaning |
-|--------|---------|
-| `c_F` | F-opening (full inspection) cost |
-| `c_P` | P-opening (partial inspection) cost |
-| `f_threshold` | F-threshold σ^F (Eq. 2) |
-| `f_threshold_given_type[t]` | Conditional F-threshold σ^{F\|t} (Eq. 3) |
-| `p_threshold` | P-threshold σ^P (Eq. 4) |
-| `fp_threshold` | FP-threshold σ^{F/P} (Eq. 5) |
+| Parameter | Value | Description |
+|---|---|---|
+| Support size | 5 | Number of possible prize values per box |
+| Max types | 3 | Maximum number of types per box |
+| Values | U(0, 10) | Prize value distribution |
+| c_F | U(0, 5) | F-opening cost distribution |
+| c_P | U(0, 3) | P-opening cost distribution, with c_P ≤ c_F |
+| Small instances | 1000 | Instances per N for N = 2, ..., 9 |
+| Large instances | 300 | Instances per N for N = 10, ..., 16 |
+| Prototypical boxes | 100 | Size of the box pool |
+| Seed | 0 | Random seed for reproducibility |
