@@ -153,8 +153,7 @@ def run_policy_benchmark(n_range=None, n_instances_small=None,
             time_row[f'{policy}_std'] = float(np.std(t_arr))
 
             if N <= DP_CUTOFF and policy != 'OPT':
-                opt_arr = np.array([r['OPT_value'] for r in reps])
-                exact_count = np.sum(np.abs(v_arr - opt_arr) < 1e-6)
+                exact_count = np.sum((1.0 - normalized) < 1e-4)
                 exact_row[f'{policy}_exact_pct'] = float(exact_count / len(v_arr))
 
         perf_rows.append(perf_row)

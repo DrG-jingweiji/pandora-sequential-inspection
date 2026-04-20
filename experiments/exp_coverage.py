@@ -43,29 +43,29 @@ def _coverage_worker(N, rep_idx, indices):
             'coverage_total': 0.0, 'recall_f': 1.0, 'recall_p': 1.0,
         }
 
-    n_stop = n_f_cond = n_p_cond = n_f_optimal = n_p_optimal = 0
+    n_stop_optimal = n_f_cond = n_p_cond = n_f_optimal = n_p_optimal = 0
 
     for state_tuple, sinfo in dp_stats.items():
         conds = sinfo['conditions']
         action = action_dict.get(state_tuple, "STOP")
 
-        if conds[COND_STOP]:
-            n_stop += 1
         if conds[COND_F_OPEN]:
             n_f_cond += 1
         if conds[COND_P_OPEN]:
             n_p_cond += 1
 
-        if action.startswith("F"):
+        if action == "STOP":
+            n_stop_optimal += 1
+        elif action.startswith("F"):
             n_f_optimal += 1
         elif action.startswith("P"):
             n_p_optimal += 1
 
     return {
-        'coverage_stop': n_stop / n_states,
+        'coverage_stop': n_stop_optimal / n_states,
         'coverage_f': n_f_cond / n_states,
         'coverage_p': n_p_cond / n_states,
-        'coverage_total': (n_stop + n_f_cond + n_p_cond) / n_states,
+        'coverage_total': (n_stop_optimal + n_f_cond + n_p_cond) / n_states,
         'recall_f': n_f_cond / n_f_optimal if n_f_optimal > 0 else 1.0,
         'recall_p': n_p_cond / n_p_optimal if n_p_optimal > 0 else 1.0,
     }

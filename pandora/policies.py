@@ -34,7 +34,7 @@ def index_policy(solver, state):
     """
     lead_idx, lead_mode, lead_th = solver.sigma_M(state)
 
-    if lead_idx is None or state[0] >= lead_th:
+    if lead_idx is None or state[0] > lead_th:
         return "STOP"
 
     i = lead_idx
@@ -283,7 +283,7 @@ def _committing_action(solver, state, partition):
                     best_idx = i
                     best_mode = 'F'
 
-    if best_idx is None or y >= best_th:
+    if best_idx is None or y > best_th:
         return "STOP"
 
     s_i = state[best_idx + 1]

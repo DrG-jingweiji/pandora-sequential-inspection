@@ -76,7 +76,7 @@ def plot_figure_EC9a(p_dominant_fractions, p_ratios):
     fig, ax = plt.subplots()
     ax.scatter(p_dominant_fractions, p_ratios, alpha=0.5)
     ax.set_xlabel('Proportion of boxes with larger P-thresholds', fontsize=14)
-    ax.set_ylabel('P-ratio', fontsize=14)
+    ax.set_ylabel('P-F ratio of OPT', fontsize=14)
     _savefig(fig, 'figure_EC9a_p_ratio_vs_proportion.png')
 
 
@@ -150,7 +150,7 @@ def plot_figure_EC10c(dispersions, p_ratios):
     fig, ax = plt.subplots()
     ax.scatter(dispersions, p_ratios, alpha=0.5)
     ax.set_xlabel('Dispersion', fontsize=14)
-    ax.set_ylabel('P-ratio', fontsize=14)
+    ax.set_ylabel('P-F ratio of OPT', fontsize=14)
     _savefig(fig, 'figure_EC10c_p_ratio_vs_dispersion.png')
 
 

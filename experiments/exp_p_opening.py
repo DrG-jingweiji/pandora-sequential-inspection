@@ -43,8 +43,7 @@ def _p_opening_worker(N, rep_idx, indices):
     opt_val = solver.solve_dp()
     n_f, n_p = solver.expected_openings('DP')
 
-    total = n_f + n_p
-    p_ratio = n_p / total if total > 0 else 0.0
+    pf_ratio = n_p / n_f if n_f > 0 else 0.0
 
     weitz_val = solver.evaluate_policy(weitzman_policy)
     weitz_ratio = weitz_val / opt_val if opt_val > 0 else 1.0
@@ -53,7 +52,7 @@ def _p_opening_worker(N, rep_idx, indices):
     dispersion = sum_of_variances(box_list)
 
     return {
-        'p_ratio': float(p_ratio),
+        'p_ratio': float(pf_ratio),
         'p_dominant_fraction': float(p_dom),
         'dispersion': float(dispersion),
         'opt_value': float(opt_val),
@@ -158,10 +157,11 @@ def run_p_opening_analysis(n_range=None, n_instances=None, seed=None,
 
     # ── Find low/high dispersion examples ──────────────────────────
     # Require N >= 7 so the scatter plots look comparable to the paper
-    # (which shows instances with 9 and 10 boxes).
+    # (which shows instances with 9–10 boxes).
+    # Old code thresholds: low < 6, high > 16.
     low_disp_example = None
     high_disp_example = None
-    for N in effective_range:
+    for N in reversed(effective_range):
         if N < 7:
             continue
         for rep in range(n_instances):
@@ -169,9 +169,9 @@ def run_p_opening_analysis(n_range=None, n_instances=None, seed=None,
             if key not in all_results:
                 continue
             r = all_results[key]
-            if low_disp_example is None and r['dispersion'] < 5:
+            if low_disp_example is None and r['dispersion'] < 6:
                 low_disp_example = [selected_boxes[i] for i in r['indices']]
-            if high_disp_example is None and r['dispersion'] > 18:
+            if high_disp_example is None and r['dispersion'] > 16:
                 high_disp_example = [selected_boxes[i] for i in r['indices']]
             if low_disp_example is not None and high_disp_example is not None:
                 break
