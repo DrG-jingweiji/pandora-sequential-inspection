@@ -6,5 +6,6 @@ from pandora.policies import (
 )
 from pandora.instance_generator import (
     generate_prototypical_boxes, sample_instance,
-    load_instance, save_instance,
+    load_instance, save_instance, load_legacy_box_pool,
+    bundled_legacy_pool_dir,
 )

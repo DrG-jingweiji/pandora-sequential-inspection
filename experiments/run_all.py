@@ -9,6 +9,7 @@ Usage:
     python -m experiments.run_all --small                 # Quick run, fewer instances
     python -m experiments.run_all --workers 6             # Use 6 parallel processes
     python -m experiments.run_all --fresh                 # Discard checkpoints, start over
+    python -m experiments.run_all --table4-pool-source benchmark
 """
 
 import argparse
@@ -20,7 +21,11 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from pandora.instance_generator import generate_prototypical_boxes
+from pandora.instance_generator import (
+    bundled_legacy_pool_dir,
+    generate_prototypical_boxes,
+    load_legacy_box_pool,
+)
 from experiments.config import (
     SEED, NUM_PROTOTYPICAL_BOXES, BOX_DISTANCE, OUTPUT_DIR, DEFAULT_WORKERS,
     SMALL_N_RANGE, LARGE_N_RANGE, SMALL_INSTANCES, LARGE_INSTANCES, DP_CUTOFF,
@@ -47,6 +52,38 @@ def _generate_boxes(seed, small=False, require_p_dominant=True):
     return selected, all_candidates
 
 
+def _load_old_boxes(pool_dir, filter_cF_gt_cP=True):
+    """Load the bundled old selected box pool."""
+    if pool_dir is None:
+        pool_dir = bundled_legacy_pool_dir()
+    print(f"Loading bundled old box pool from {pool_dir}...")
+    selected = load_legacy_box_pool(
+        pool_dir=pool_dir,
+        filter_cF_gt_cP=filter_cF_gt_cP,
+    )
+    all_boxes = load_legacy_box_pool(pool_dir=pool_dir, filter_cF_gt_cP=False)
+    print(f"  {len(selected)} selected from {len(all_boxes)} bundled old boxes")
+    return selected, all_boxes
+
+
+def _parse_n_range(spec):
+    """Parse an inclusive range like ``2:5`` or a comma list."""
+    if not spec:
+        return None
+    if ':' in spec:
+        start, end = [int(x.strip()) for x in spec.split(':', 1)]
+        if end < start:
+            raise ValueError('--table4-n-range end must be >= start')
+        return list(range(start, end + 1))
+    return [int(x.strip()) for x in spec.split(',') if x.strip()]
+
+
+def _policy_benchmark_n_range(small):
+    if small:
+        return list(range(2, 5)) + list(range(10, 12))
+    return list(SMALL_N_RANGE) + list(range(10, 15))
+
+
 def _estimate_task_counts(experiment, small):
     """Pre-compute the number of parallel tasks for each experiment."""
     counts = {}
@@ -69,7 +106,7 @@ def _estimate_task_counts(experiment, small):
         dp_comp_range = [N for N in dp_range if N <= 7] if not small else dp_range
         counts['dp_comparison'] = len(dp_comp_range) * n_small_inst
     if experiment in ('all', 'policy_benchmark'):
-        bench_range = s_range + list(range(10, 15)) if not small else list(range(2, 5)) + list(range(10, 12))
+        bench_range = _policy_benchmark_n_range(small)
         counts['policy_benchmark'] = sum(
             n_small_inst if N <= DP_CUTOFF else n_large_inst
             for N in bench_range
@@ -95,7 +132,28 @@ def main():
                              f'(default: {DEFAULT_WORKERS})')
     parser.add_argument('--fresh', action='store_true',
                         help='Clear all checkpoints and start from scratch')
+    parser.add_argument('--pool-source', type=str, default='generated',
+                        choices=['generated', 'random', 'old'],
+                        help=('Box pool to use. "generated" and "random" '
+                              'generate a fresh deterministic pool; "old" '
+                              'loads the bundled old pool and uses the '
+                              'old notebook sampling stream.'))
+    parser.add_argument('--legacy-pool-dir', type=str, default=None,
+                        help='Directory containing bundled old-pool JSON data '
+                             '(default: data/legacy_box_pools)')
+    parser.add_argument('--table4-pool-source', type=str, default='old',
+                        choices=['old', 'benchmark'],
+                        help=('Pool for Table 4. Default "old" uses the '
+                              'bundled old pool; "benchmark" uses the same '
+                              'pool as Tables 3/EC.1.'))
+    parser.add_argument('--table4-n-range', type=str, default=None,
+                        help='Override Table 4 N range, e.g. 2:5 or 2,3,4')
+    parser.add_argument('--table4-reps', type=int, default=None,
+                        help='Override Table 4 instances per N')
     args = parser.parse_args()
+
+    pool_source = 'generated' if args.pool_source == 'random' else args.pool_source
+    use_legacy_pool = pool_source == 'old'
 
     n_workers = args.workers
     n_small = 10 if args.small else None
@@ -110,16 +168,39 @@ def main():
 
     print(f"Using {n_workers} parallel worker(s)")
 
-    # Main pool (σ^P > σ^F) for Tables 1-4, EC.1 and Figure 3
-    selected_boxes, all_candidates = _generate_boxes(SEED, small=args.small)
+    # Main pool for Tables 1-4, EC.1 and Figure 3.
+    if use_legacy_pool:
+        print("Using bundled old box pool with legacy RandomState sampling")
+        selected_boxes, all_candidates = _load_old_boxes(
+            args.legacy_pool_dir,
+            filter_cF_gt_cP=True,
+        )
+        p_opening_boxes = load_legacy_box_pool(
+            pool_dir=args.legacy_pool_dir,
+            filter_cF_gt_cP=False,
+        )
+        p_opening_candidates = all_candidates
+    else:
+        selected_boxes, all_candidates = _generate_boxes(SEED, small=args.small)
 
-    # Unfiltered pool for P-opening experiments (Figures EC.8-EC.10)
-    p_opening_boxes, p_opening_candidates = _generate_boxes(
-        SEED, small=args.small, require_p_dominant=False,
-    )
+        # Unfiltered pool for P-opening experiments (Figures EC.8-EC.10)
+        p_opening_boxes, p_opening_candidates = _generate_boxes(
+            SEED, small=args.small, require_p_dominant=False,
+        )
 
     # ── Overall progress ─────────────────────────────────────────────
     task_counts = _estimate_task_counts(args.experiment, args.small)
+    if args.experiment in ('all', 'policy_benchmark') and args.table4_pool_source == 'old':
+        table4_n_range = _parse_n_range(args.table4_n_range)
+        if table4_n_range is None:
+            table4_n_range = [
+                N for N in _policy_benchmark_n_range(args.small)
+                if N <= DP_CUTOFF
+            ]
+        table4_reps = args.table4_reps
+        if table4_reps is None:
+            table4_reps = n_small if args.small else SMALL_INSTANCES
+        task_counts['table4_old'] = len(table4_n_range) * table4_reps
     total_tasks = sum(task_counts.values())
 
     if total_tasks > 0:
@@ -146,7 +227,8 @@ def main():
             from experiments.exp_coverage import run_coverage_experiment
             run_coverage_experiment(n_range=n_range_small, n_instances=n_small,
                                     selected_boxes=selected_boxes,
-                                    n_workers=n_workers)
+                                    n_workers=n_workers,
+                                    legacy_sampling=use_legacy_pool)
 
         # ---- Experiment 2: DP comparison (Table 2) ----
         if args.experiment in ('all', 'dp_comparison'):
@@ -157,7 +239,8 @@ def main():
             dp_n_range = n_range_small if args.small else range(2, 8)
             run_dp_comparison(n_range=dp_n_range, n_instances=n_small,
                               selected_boxes=selected_boxes,
-                              n_workers=n_workers)
+                              n_workers=n_workers,
+                              legacy_sampling=use_legacy_pool)
 
         # ---- Experiment 3: Policy benchmark (Tables 3, 4, EC.1) ----
         if args.experiment in ('all', 'policy_benchmark'):
@@ -165,13 +248,41 @@ def main():
             print("Experiment 3: Policy benchmark (Tables 3, 4, EC.1)")
             print("=" * 60)
             from experiments.exp_policy_benchmark import run_policy_benchmark
-            n_range = list(SMALL_N_RANGE) + list(range(10, 15))
-            if args.small:
-                n_range = list(range(2, 5)) + list(range(10, 12))
+            n_range = _policy_benchmark_n_range(args.small)
+            table4_from_benchmark = args.table4_pool_source == 'benchmark'
             run_policy_benchmark(n_range=n_range, n_instances_small=n_small,
                                  n_instances_large=n_large,
                                  selected_boxes=selected_boxes,
-                                 n_workers=n_workers)
+                                 n_workers=n_workers,
+                                 legacy_sampling=use_legacy_pool,
+                                 write_exact_table=table4_from_benchmark)
+
+            if args.table4_pool_source == 'old':
+                print("\n" + "=" * 60)
+                print("Table 4: old bundled box pool")
+                print("=" * 60)
+                from experiments.replicate_table4 import run_table4_replication
+
+                table4_n_range = _parse_n_range(args.table4_n_range)
+                if table4_n_range is None:
+                    table4_n_range = [N for N in n_range if N <= DP_CUTOFF]
+                table4_reps = args.table4_reps
+                if table4_reps is None:
+                    table4_reps = n_small if args.small else SMALL_INSTANCES
+
+                run_table4_replication(
+                    pool_source='old',
+                    legacy_pool_dir=args.legacy_pool_dir,
+                    n_range=table4_n_range,
+                    reps=table4_reps,
+                    policies=['INDEX', 'WHITTLE', 'COM'],
+                    seed=SEED,
+                    output_dir=OUTPUT_DIR,
+                    n_workers=n_workers,
+                    fresh=args.fresh,
+                    output_prefix='table_4_exact_optimality',
+                    save_raw=False,
+                )
 
         # ---- Experiment 4: P-opening analysis (Figures EC.9, EC.10) ----
         if args.experiment in ('all', 'p_opening'):
@@ -183,7 +294,8 @@ def main():
             )
             run_p_opening_analysis(n_range=n_range_small, n_instances=n_small,
                                    selected_boxes=p_opening_boxes,
-                                   n_workers=n_workers)
+                                   n_workers=n_workers,
+                                   legacy_sampling=use_legacy_pool)
             n_mb_range = range(1, 4) if args.small else None
             run_more_boxes_experiment(n_range=n_mb_range,
                                       n_workers=n_workers)

@@ -70,7 +70,9 @@ def _benchmark_worker(N, rep_idx, indices):
 
 def run_policy_benchmark(n_range=None, n_instances_small=None,
                          n_instances_large=None, seed=None,
-                         selected_boxes=None, n_workers=None):
+                         selected_boxes=None, n_workers=None,
+                         legacy_sampling=False,
+                         write_exact_table=True):
     """Run Experiment 3: policy performance comparison.
 
     Returns three DataFrames: performance_df, time_df, exact_df.
@@ -97,9 +99,11 @@ def run_policy_benchmark(n_range=None, n_instances_small=None,
 
     tasks = generate_instance_tasks(
         n_range, _n_instances, len(selected_boxes), seed,
+        legacy_sampling=legacy_sampling,
     )
 
-    ckpt = checkpoint_path_for(OUTPUT_DIR, 'policy_benchmark')
+    ckpt_name = 'policy_benchmark_legacy' if legacy_sampling else 'policy_benchmark'
+    ckpt = checkpoint_path_for(OUTPUT_DIR, ckpt_name)
     all_results = run_parallel(
         _benchmark_worker, tasks,
         shared_data={'selected_boxes': selected_boxes},
@@ -168,21 +172,26 @@ def run_policy_benchmark(n_range=None, n_instances_small=None,
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     perf_df.to_csv(os.path.join(OUTPUT_DIR, 'table_3_performance.csv'), index=False)
     time_df.to_csv(os.path.join(OUTPUT_DIR, 'table_EC1_runtime.csv'), index=False)
-    exact_df.to_csv(os.path.join(OUTPUT_DIR, 'table_4_exact_optimality.csv'), index=False)
+    if write_exact_table:
+        exact_df.to_csv(os.path.join(OUTPUT_DIR, 'table_4_exact_optimality.csv'), index=False)
 
     from experiments.formatting import (
         format_table_3, format_table_4, format_table_EC1, save_latex,
     )
     save_latex(os.path.join(OUTPUT_DIR, 'table_3_performance.tex'),
                format_table_3(perf_df, dp_cutoff=DP_CUTOFF))
-    save_latex(os.path.join(OUTPUT_DIR, 'table_4_exact_optimality.tex'),
-               format_table_4(exact_df))
+    if write_exact_table:
+        save_latex(os.path.join(OUTPUT_DIR, 'table_4_exact_optimality.tex'),
+                   format_table_4(exact_df))
     save_latex(os.path.join(OUTPUT_DIR, 'table_EC1_runtime.tex'),
                format_table_EC1(time_df, dp_cutoff=DP_CUTOFF))
 
     print("\nPerformance results:")
     print(perf_df.to_string(index=False))
-    print("\nExact optimality:")
+    if write_exact_table:
+        print("\nExact optimality:")
+    else:
+        print("\nExact optimality from benchmark pool (not written as Table 4):")
     print(exact_df.to_string(index=False))
 
     return perf_df, time_df, exact_df

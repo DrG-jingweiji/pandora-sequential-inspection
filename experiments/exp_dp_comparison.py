@@ -52,7 +52,8 @@ def _dp_comparison_worker(N, rep_idx, indices):
 
 
 def run_dp_comparison(n_range=None, n_instances=None, seed=None,
-                      selected_boxes=None, n_workers=None):
+                      selected_boxes=None, n_workers=None,
+                      legacy_sampling=False):
     """Run Experiment 2: naive vs structured DP comparison.
 
     Returns a DataFrame with columns:
@@ -76,9 +77,11 @@ def run_dp_comparison(n_range=None, n_instances=None, seed=None,
 
     tasks = generate_instance_tasks(
         n_range, lambda N: n_instances, len(selected_boxes), seed,
+        legacy_sampling=legacy_sampling,
     )
 
-    ckpt = checkpoint_path_for(OUTPUT_DIR, 'dp_comparison')
+    ckpt_name = 'dp_comparison_legacy' if legacy_sampling else 'dp_comparison'
+    ckpt = checkpoint_path_for(OUTPUT_DIR, ckpt_name)
     all_results = run_parallel(
         _dp_comparison_worker, tasks,
         shared_data={'selected_boxes': selected_boxes},

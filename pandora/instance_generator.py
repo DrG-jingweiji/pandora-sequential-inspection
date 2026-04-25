@@ -170,6 +170,48 @@ def sample_instance(selected_boxes, n_boxes, rng=None):
 
 
 # ======================================================================
+# Legacy old-folder box pools
+# ======================================================================
+
+LEGACY_SELECTED_POOL_FILE = 'legacy_selected_boxes_100_0p5.json'
+
+
+def bundled_legacy_pool_dir():
+    """Return the project-local directory containing bundled old box pools."""
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    return os.path.join(repo_root, 'data', 'legacy_box_pools')
+
+
+def load_legacy_box_pool(pool_dir=None, pool_file=LEGACY_SELECTED_POOL_FILE,
+                         filter_cF_gt_cP=False):
+    """Load a bundled old box pool as new ``Box`` objects.
+
+    Parameters
+    ----------
+    pool_dir : str, optional
+        Directory containing project-local legacy pool JSON files. If omitted,
+        uses ``data/legacy_box_pools`` in this repository.
+    pool_file : str
+        JSON file containing the converted old selected pool.
+    filter_cF_gt_cP : bool
+        Apply the old Yaron notebook filter ``c_S > c_W``.  This is the
+        effective pool used for Tables 1--4/EC.1 in the old experiments.
+    """
+    if pool_dir is None:
+        pool_dir = bundled_legacy_pool_dir()
+
+    path = os.path.join(pool_dir, pool_file)
+    with open(path) as fh:
+        payload = json.load(fh)
+
+    raw_boxes = payload['boxes'] if isinstance(payload, dict) else payload
+    boxes = [box_from_dict(box) for box in raw_boxes]
+    if filter_cF_gt_cP:
+        boxes = [box for box in boxes if box.c_F > box.c_P]
+    return boxes
+
+
+# ======================================================================
 # JSON I/O (backward compatible with old instance.json schema)
 # ======================================================================
 

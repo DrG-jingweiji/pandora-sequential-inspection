@@ -91,10 +91,10 @@ class OverallProgress:
               f"  ({self.completed} tasks)")
 
 
-_overall: OverallProgress | None = None
+_overall = None
 
 
-def set_overall_progress(tracker: OverallProgress | None):
+def set_overall_progress(tracker):
     """Set (or clear) the global overall-progress tracker."""
     global _overall
     _overall = tracker
@@ -168,7 +168,8 @@ def clear_all_checkpoints(output_dir):
 
 # ── Task generation ──────────────────────────────────────────────────
 
-def generate_instance_tasks(n_range, n_instances_fn, n_pool, seed):
+def generate_instance_tasks(n_range, n_instances_fn, n_pool, seed,
+                            legacy_sampling=False):
     """Pre-generate deterministic (key, N, rep, indices) task tuples.
 
     Uses a single RNG consumed in the same sequential order as the
@@ -185,17 +186,27 @@ def generate_instance_tasks(n_range, n_instances_fn, n_pool, seed):
         Size of the prototypical box pool (``len(selected_boxes)``).
     seed : int
         RNG seed for reproducibility.
+    legacy_sampling : bool
+        If True, use ``np.random.RandomState(seed).randint`` in the same
+        stream order as the old notebooks.  If False, use NumPy's modern
+        ``default_rng``.
 
     Returns
     -------
     list of (key_str, N, rep_idx, indices_list)
     """
-    rng = np.random.default_rng(seed)
+    if legacy_sampling:
+        rng = np.random.RandomState(seed)
+        draw_indices = lambda n: rng.randint(0, n_pool, size=n).tolist()
+    else:
+        rng = np.random.default_rng(seed)
+        draw_indices = lambda n: rng.integers(0, n_pool, size=n).tolist()
+
     tasks = []
     for N in n_range:
         n_inst = n_instances_fn(N)
         for rep in range(n_inst):
-            indices = rng.integers(0, n_pool, size=N).tolist()
+            indices = draw_indices(N)
             tasks.append((f"{N}_{rep}", N, rep, indices))
     return tasks
 

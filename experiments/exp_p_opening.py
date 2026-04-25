@@ -95,7 +95,8 @@ def _more_boxes_worker(c_P_str, N):
 
 
 def run_p_opening_analysis(n_range=None, n_instances=None, seed=None,
-                           selected_boxes=None, n_workers=None):
+                           selected_boxes=None, n_workers=None,
+                           legacy_sampling=False):
     """Run Experiment 4: P-opening analysis with figure generation.
 
     Returns a DataFrame with per-instance metrics.
@@ -119,9 +120,11 @@ def run_p_opening_analysis(n_range=None, n_instances=None, seed=None,
 
     tasks = generate_instance_tasks(
         effective_range, lambda N: n_instances, len(selected_boxes), seed,
+        legacy_sampling=legacy_sampling,
     )
 
-    ckpt = checkpoint_path_for(OUTPUT_DIR, 'p_opening')
+    ckpt_name = 'p_opening_legacy' if legacy_sampling else 'p_opening'
+    ckpt = checkpoint_path_for(OUTPUT_DIR, ckpt_name)
     all_results = run_parallel(
         _p_opening_worker, tasks,
         shared_data={'selected_boxes': selected_boxes},

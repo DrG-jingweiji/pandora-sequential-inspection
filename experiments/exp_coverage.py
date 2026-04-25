@@ -72,7 +72,8 @@ def _coverage_worker(N, rep_idx, indices):
 
 
 def run_coverage_experiment(n_range=None, n_instances=None, seed=None,
-                            selected_boxes=None, n_workers=None):
+                            selected_boxes=None, n_workers=None,
+                            legacy_sampling=False):
     """Run Experiment 1: theorem coverage analysis.
 
     Returns a DataFrame with columns:
@@ -96,9 +97,11 @@ def run_coverage_experiment(n_range=None, n_instances=None, seed=None,
 
     tasks = generate_instance_tasks(
         n_range, lambda N: n_instances, len(selected_boxes), seed,
+        legacy_sampling=legacy_sampling,
     )
 
-    ckpt = checkpoint_path_for(OUTPUT_DIR, 'coverage')
+    ckpt_name = 'coverage_legacy' if legacy_sampling else 'coverage'
+    ckpt = checkpoint_path_for(OUTPUT_DIR, ckpt_name)
     all_results = run_parallel(
         _coverage_worker, tasks,
         shared_data={'selected_boxes': selected_boxes},
