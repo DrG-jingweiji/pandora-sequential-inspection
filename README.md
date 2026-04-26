@@ -31,31 +31,35 @@ python -m experiments.run_all --small
 
 ```
 pandora/                    Core solver library
-├── box.py                  Box class with opening thresholds (Definition 1, Eqs. 2–5)
-├── solver.py               DP solver: naive Bellman (Eq. 1) and structured DP (Theorems 1–3)
-├── policies.py             Heuristic policies: index, Whittle, STP, committing, Weitzman
-├── instance_generator.py   Random instance generation and prototypical box pools
-└── utils.py                Helper functions (dispersion metric, P-dominant ratio)
+  box.py                    Box class with opening thresholds
+  solver.py                 DP solver: naive Bellman and structured DP
+  policies.py               Heuristic policies: index, Whittle, STP, committing, Weitzman
+  instance_generator.py     Random instance generation and prototypical box pools
+  utils.py                  Helper functions
 
-experiments/                Experiment runners (paper Section 6 and e-companion)
-├── config.py               Parameters matching the paper's experimental setup
-├── parallel.py             Parallel execution engine with crash-recovery checkpointing
-├── exp_coverage.py         Theorem coverage analysis → Table 1
-├── exp_dp_comparison.py    Naive vs structured DP → Table 2
-├── exp_policy_benchmark.py Policy benchmark → Tables 3, 4, EC.1
-├── exp_p_opening.py        P-opening analysis → Figures EC.9, EC.10
-├── figures.py              Matplotlib figure generators
-├── formatting.py           LaTeX table formatters
-└── run_all.py              CLI entry point
+data/
+  legacy_box_pools/         Bundled old selected box pool used by Table 4
+
+experiments/                Experiment runners
+  config.py                 Parameters matching the paper's experimental setup
+  parallel.py               Parallel execution engine with crash-recovery checkpointing
+  exp_coverage.py           Theorem coverage analysis -> Table 1
+  exp_dp_comparison.py      Naive vs structured DP -> Table 2
+  exp_policy_benchmark.py   Policy benchmark -> Tables 3, 4, EC.1
+  replicate_table4.py       Focused Table 4 replication driver
+  exp_p_opening.py          P-opening analysis -> Figures EC.9, EC.10
+  figures.py                Matplotlib figure generators
+  formatting.py             LaTeX table formatters
+  run_all.py                CLI entry point
 
 tests/                      Validation and comparison
-├── test_box_thresholds.py  Unit tests for threshold computations
-├── test_dp_values.py       Unit tests for DP optimal values
-├── test_dp_efficiency.py   Tests for structured DP efficiency gains
-├── test_policies.py        Unit tests for heuristic policies
-├── validate_against_paper.py  Compares generated tables to paper values with tolerances
-├── comparison.tex          LaTeX source for visual comparison document
-└── comparison.pdf          Paper figures/tables vs generated output (precompiled)
+  test_box_thresholds.py    Unit tests for threshold computations
+  test_dp_values.py         Unit tests for DP optimal values
+  test_dp_efficiency.py     Tests for structured DP efficiency gains
+  test_policies.py          Unit tests for heuristic policies
+  validate_against_paper.py Compares generated tables to paper values
+  comparison.tex            LaTeX source for visual comparison document
+  comparison.pdf            Paper figures/tables vs generated output
 
 tutorial.py                 Step-by-step walkthrough for solving a single instance
 requirements.txt            Python dependencies
@@ -156,6 +160,9 @@ python -m experiments.run_all -e dp_comparison      # Table 2
 python -m experiments.run_all -e policy_benchmark   # Tables 3, 4, EC.1
 python -m experiments.run_all -e p_opening          # Figures EC.9, EC.10
 python -m experiments.run_all -e box_scatter        # Figures 3, EC.8
+
+# Focused Table 4 replication from the bundled old pool
+python -m experiments.replicate_table4 --pool-source old --n-range 2:5
 ```
 
 ### CLI Options
@@ -166,6 +173,11 @@ python -m experiments.run_all -e box_scatter        # Figures 3, EC.8
 | `--small` | Quick test with reduced N range and fewer instances |
 | `--workers N`, `-w N` | Number of parallel worker processes (default: 3) |
 | `--fresh` | Clear all checkpoints and start from scratch |
+| `--pool-source generated\|old` | Pool for Tables 1-3, EC.1, and the main figures. Default: `generated` |
+| `--table4-pool-source old\|benchmark` | Pool for Table 4. Default: `old`, the bundled legacy pool |
+| `--legacy-pool-dir PATH` | Override the bundled legacy pool directory |
+| `--table4-n-range SPEC` | Override Table 4 N range, e.g. `2:5` |
+| `--table4-reps N` | Override Table 4 instances per N |
 
 ### Parallel Execution and Crash Recovery
 
@@ -198,17 +210,27 @@ The `--small` flag reduces this to ~30 minutes for a quick sanity check.
 
 ### Prototypical Box Pools
 
-The experiments use two separate pools of prototypical boxes, generated with
-the same seed but different selection criteria:
+By default, `experiments.run_all` uses generated boxes for every experiment
+except Table 4:
 
-1. **P-dominant pool** (`require_p_dominant=True`) — Only boxes with σ^P > σ^F
-   are kept. Used for the main experiments (Tables 1–4, EC.1) and Figure 3.
-2. **Mixed pool** (`require_p_dominant=False`) — All boxes regardless of which
-   threshold is larger. Used for the P-opening analysis (Figures EC.8–EC.10),
-   where the relationship between σ^P and σ^F is the quantity of interest.
+1. **Generated P-dominant pool** (`require_p_dominant=True`) — Used for
+   Tables 1, 2, 3, EC.1, and Figure 3.
+2. **Generated mixed pool** (`require_p_dominant=False`) — Used for the
+   P-opening analysis and Figures EC.8–EC.10.
+3. **Bundled old selected pool** (`data/legacy_box_pools/`) — Used for
+   Table 4 by default. The bundled file contains the old 100 selected
+   prototypical boxes; the loader applies the old `c_F > c_P` filter, leaving
+   the 56-box pool used in the original Table 4 run.
 
-Both pools apply the same distance-based diversity criterion and positive-threshold
-filter. This matches the original experimental design in the paper.
+This default keeps the reorganized/generated experiments for most outputs, but
+uses the old box pool for Table 4 because exact-optimality rates are especially
+sensitive to the selected boxes.
+
+To make Table 4 use the same generated pool as Table 3/EC.1, run:
+
+```bash
+python -m experiments.run_all --table4-pool-source benchmark
+```
 
 ## Validating Results
 
@@ -227,11 +249,10 @@ cd tests && tectonic comparison.tex
 The visual comparison document (`tests/comparison.pdf`) places each paper table
 and figure above the corresponding generated output for easy manual inspection.
 
-**Note on reproducibility:** Results will not match the paper exactly because the
-prototypical box pool is regenerated (same seed, different code path). Policy
-performance statistics (Table 3) match closely; metrics sensitive to the specific
-box pool (Tables 1, 2, 4) show larger deviations. See the comparison document
-for details.
+**Note on reproducibility:** Tables 1, 2, 3, EC.1, and the figures use generated
+box pools by default, so they may differ from the historical run when a result is
+sensitive to the exact selected boxes. Table 4 uses the bundled old selected pool
+by default and is intended to match the original Table 4 much more closely.
 
 ## Running Unit Tests
 
