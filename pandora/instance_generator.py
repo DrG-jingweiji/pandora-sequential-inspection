@@ -157,6 +157,86 @@ def generate_prototypical_boxes(n_boxes, distance=0.5, rng=None,
     return selected
 
 
+def generate_legacy_style_prototypical_boxes(n_boxes, distance=0.5, rng=None,
+                                             max_attempts=500000,
+                                             return_all=False,
+                                             filter_cF_gt_cP=False,
+                                             require_p_dominant=True):
+    """Generate boxes with the old ``Experiment.py`` selection rule.
+
+    The default generator compares distance only against previously selected
+    boxes.  The old generator compared each candidate against every valid
+    candidate generated so far, including candidates that were not selected.
+    It also advanced the 2-type/5-type alternation only after a candidate had
+    positive thresholds.
+
+    ``require_p_dominant=True`` matches the archived source line
+    ``weakThreshold > strongThresholds_list[0]``.  The stored old pickle itself
+    is mixed in that threshold order, so diagnostic runs can set it to False.
+    """
+    if rng is None:
+        rng = random
+
+    selected = []
+    all_candidates = []
+    candidate_grid = {}
+    valid_count = 0
+    attempts = 0
+
+    def cell_for(box):
+        return (
+            int(np.floor(box.p_threshold / distance)),
+            int(np.floor(box.f_threshold / distance)),
+        )
+
+    def has_close_candidate(box):
+        cell_p, cell_f = cell_for(box)
+        for dp in (-1, 0, 1):
+            for df in (-1, 0, 1):
+                for existing in candidate_grid.get((cell_p + dp,
+                                                    cell_f + df), []):
+                    dist = np.sqrt(
+                        (box.p_threshold - existing.p_threshold) ** 2
+                        + (box.f_threshold - existing.f_threshold) ** 2
+                    )
+                    if dist < distance:
+                        return True
+        return False
+
+    while len(selected) < n_boxes and attempts < max_attempts:
+        attempts += 1
+        if valid_count % 3 != 0:
+            box = generate_one_box_v5_t3(rng)
+        else:
+            box = generate_one_box_v2_t2(rng)
+
+        if box.p_threshold <= 0 or box.f_threshold <= 0:
+            continue
+
+        threshold_order_ok = (
+            not require_p_dominant or box.p_threshold > box.f_threshold
+        )
+        if not has_close_candidate(box) and threshold_order_ok:
+            selected.append(box)
+
+        all_candidates.append(box)
+        candidate_grid.setdefault(cell_for(box), []).append(box)
+        valid_count += 1
+
+    if len(selected) < n_boxes:
+        raise RuntimeError(
+            f'Generated only {len(selected)} legacy-style boxes after '
+            f'{max_attempts} attempts; requested {n_boxes}.'
+        )
+
+    if filter_cF_gt_cP:
+        selected = [box for box in selected if box.c_F > box.c_P]
+
+    if return_all:
+        return selected, all_candidates
+    return selected
+
+
 def sample_instance(selected_boxes, n_boxes, rng=None):
     """Sample an instance of n_boxes from a pool of prototypical boxes.
 

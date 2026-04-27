@@ -6,6 +6,7 @@ that reproduces the corresponding table from the paper.
 
 import os
 import numpy as np
+import pandas as pd
 
 
 def save_latex(path, latex_str):
@@ -210,7 +211,8 @@ def format_table_3(df, dp_cutoff=9):
 def format_table_4(df):
     r"""Format exact optimality percentages as LaTeX matching Table 4.
 
-    Expected columns: N, and per-policy exact_pct columns.
+    Expected columns: either paper columns (N, OPT, INDEX, WHITTLE, COM) or
+    internal exact_pct columns.
     """
     lines = []
     lines.append(r'\begin{table}[htbp]')
@@ -230,10 +232,10 @@ def format_table_4(df):
 
     for _, row in df.iterrows():
         n = int(row['N'])
-        opt = '1.000'
-        idx_val = _fmt(row.get('INDEX_exact_pct', 0), 3)
-        wh_val = _fmt(row.get('WHITTLE_exact_pct', 0), 3)
-        com_val = _fmt(row.get('COM_exact_pct', 0), 3)
+        opt = _fmt(row.get('OPT', 1.0), 3)
+        idx_val = _fmt(row.get('INDEX', row.get('INDEX_exact_pct', 0)), 3)
+        wh_val = _fmt(row.get('WHITTLE', row.get('WHITTLE_exact_pct', 0)), 3)
+        com_val = _fmt(row.get('COM', row.get('COM_exact_pct', 0)), 3)
         line = (f'    {n}  & {opt} & {idx_val} & {wh_val}  &  {com_val}  \\\\')
         lines.append(line)
 
@@ -243,6 +245,20 @@ def format_table_4(df):
     lines.append(r'  \label{tab:comparison_of_J}%')
     lines.append(r'\end{table}%')
     return '\n'.join(lines)
+
+
+def table4_paper_columns(df):
+    """Return Table 4 with only columns shown in the paper."""
+    rows = []
+    for _, row in df.iterrows():
+        rows.append({
+            'N': int(row['N']),
+            'OPT': float(row.get('OPT', 1.0)),
+            'INDEX': float(row.get('INDEX', row.get('INDEX_exact_pct', np.nan))),
+            'WHITTLE': float(row.get('WHITTLE', row.get('WHITTLE_exact_pct', np.nan))),
+            'COM': float(row.get('COM', row.get('COM_exact_pct', np.nan))),
+        })
+    return pd.DataFrame(rows, columns=['N', 'OPT', 'INDEX', 'WHITTLE', 'COM'])
 
 
 # ======================================================================

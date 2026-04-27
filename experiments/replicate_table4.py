@@ -9,6 +9,8 @@ sampling stream.
 Examples
 --------
     python -m experiments.replicate_table4 --pool-source old --n-range 2:5
+    python -m experiments.replicate_table4 --pool-source legacy-generated
+    python -m experiments.replicate_table4 --pool-source legacy-generated-mixed
     python -m experiments.replicate_table4 --pool-source generated --reps 200
 """
 
@@ -25,6 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from pandora.instance_generator import (
     bundled_legacy_pool_dir,
+    generate_legacy_style_prototypical_boxes,
     generate_prototypical_boxes,
     load_legacy_box_pool,
 )
@@ -44,7 +47,11 @@ from experiments.config import (
     SEED,
     SMALL_INSTANCES,
 )
-from experiments.formatting import format_table_4, save_latex
+from experiments.formatting import (
+    format_table_4,
+    save_latex,
+    table4_paper_columns,
+)
 from experiments.parallel import (
     checkpoint_path_for,
     clear_checkpoint,
@@ -61,12 +68,16 @@ POLICY_FUNCS = {
     'WEITZMAN': weitzman_policy,
 }
 
-# Values transcribed from Table 4 in comparison.pdf/page 5.
+# Values transcribed from Table 4 in the paper.
 PAPER_TABLE_4 = {
     2: {'INDEX': 0.543, 'WHITTLE': 0.238, 'COM': 0.835},
     3: {'INDEX': 0.614, 'WHITTLE': 0.065, 'COM': 0.850},
     4: {'INDEX': 0.622, 'WHITTLE': 0.023, 'COM': 0.853},
     5: {'INDEX': 0.661, 'WHITTLE': 0.002, 'COM': 0.892},
+    6: {'INDEX': 0.686, 'WHITTLE': 0.001, 'COM': 0.904},
+    7: {'INDEX': 0.701, 'WHITTLE': 0.000, 'COM': 0.927},
+    8: {'INDEX': 0.715, 'WHITTLE': 0.001, 'COM': 0.944},
+    9: {'INDEX': 0.733, 'WHITTLE': 0.000, 'COM': 0.943},
 }
 
 
@@ -90,22 +101,48 @@ def _parse_policies(text):
     return raw
 
 
-def _load_box_pool(pool_source, seed, legacy_pool_dir):
+def _load_box_pool(pool_source, seed, legacy_pool_dir,
+                   n_prototype_boxes=NUM_PROTOTYPICAL_BOXES,
+                   legacy_max_attempts=50000):
     if pool_source == 'old':
         boxes = load_legacy_box_pool(
             pool_dir=legacy_pool_dir,
             filter_cF_gt_cP=True,
         )
-        return boxes, True
+        return boxes, True, {}
+
+    if pool_source == 'legacy-generated':
+        boxes, candidates = generate_legacy_style_prototypical_boxes(
+            n_prototype_boxes,
+            BOX_DISTANCE,
+            rng=random.Random(seed),
+            max_attempts=legacy_max_attempts,
+            return_all=True,
+            filter_cF_gt_cP=True,
+            require_p_dominant=True,
+        )
+        return boxes, True, {'valid_candidates_generated': len(candidates)}
+
+    if pool_source == 'legacy-generated-mixed':
+        boxes, candidates = generate_legacy_style_prototypical_boxes(
+            n_prototype_boxes,
+            BOX_DISTANCE,
+            rng=random.Random(seed),
+            max_attempts=legacy_max_attempts,
+            return_all=True,
+            filter_cF_gt_cP=True,
+            require_p_dominant=False,
+        )
+        return boxes, True, {'valid_candidates_generated': len(candidates)}
 
     random.seed(seed)
     np.random.seed(seed)
     boxes = generate_prototypical_boxes(
-        NUM_PROTOTYPICAL_BOXES,
+        n_prototype_boxes,
         BOX_DISTANCE,
         require_p_dominant=True,
     )
-    return boxes, False
+    return boxes, False, {}
 
 
 def _table4_worker(N, rep_idx, indices):
@@ -197,23 +234,28 @@ def _build_pdf_comparison(exact_df, policies):
     return pd.DataFrame(rows)
 
 
-def _checkpoint_name(pool_source, n_range, reps, policies, tol, seed):
+def _checkpoint_name(pool_source, n_range, reps, policies, tol, seed,
+                     n_prototype_boxes):
     n_token = '-'.join(str(n) for n in n_range)
     p_token = '-'.join(policies)
     tol_token = str(tol).replace('-', 'm').replace('.', 'p')
-    return f'table4_{pool_source}_seed{seed}_n{n_token}_r{reps}_{p_token}_{tol_token}'
+    return (f'table4_{pool_source}_seed{seed}_pool{n_prototype_boxes}_'
+            f'n{n_token}_r{reps}_{p_token}_{tol_token}')
 
 
 def run_table4_replication(pool_source='old', legacy_pool_dir=None, n_range=None,
                            reps=SMALL_INSTANCES, policies=None, seed=SEED,
                            tol=1e-4, output_dir=None, n_workers=1,
-                           fresh=False, output_prefix=None, save_raw=True):
+                           fresh=False, output_prefix=None, save_raw=True,
+                           n_prototype_boxes=NUM_PROTOTYPICAL_BOXES,
+                           legacy_max_attempts=50000,
+                           save_comparison=False):
     if pool_source == 'random':
         pool_source = 'generated'
     if legacy_pool_dir is None:
         legacy_pool_dir = bundled_legacy_pool_dir()
     if n_range is None:
-        n_range = [2, 3, 4, 5]
+        n_range = list(range(2, DP_CUTOFF + 1))
     if policies is None:
         policies = ['INDEX', 'WHITTLE', 'COM']
     if output_dir is None:
@@ -225,15 +267,19 @@ def run_table4_replication(pool_source='old', legacy_pool_dir=None, n_range=None
             f'but DP_CUTOFF={DP_CUTOFF}.'
         )
 
-    selected_boxes, legacy_sampling = _load_box_pool(
+    selected_boxes, legacy_sampling, pool_meta = _load_box_pool(
         pool_source,
         seed,
         legacy_pool_dir,
+        n_prototype_boxes=n_prototype_boxes,
+        legacy_max_attempts=legacy_max_attempts,
     )
     print(f'Pool source: {pool_source}')
     if pool_source == 'old':
         print(f'Legacy pool directory: {legacy_pool_dir}')
     print(f'Box pool size: {len(selected_boxes)}')
+    for key, value in pool_meta.items():
+        print(f'{key}: {value}')
     print(f'Legacy sampling: {legacy_sampling}')
     print(f'N range: {n_range}; reps per N: {reps}; policies: {policies}')
 
@@ -248,7 +294,8 @@ def run_table4_replication(pool_source='old', legacy_pool_dir=None, n_range=None
     os.makedirs(output_dir, exist_ok=True)
     ckpt = checkpoint_path_for(
         output_dir,
-        _checkpoint_name(pool_source, n_range, reps, policies, tol, seed),
+        _checkpoint_name(pool_source, n_range, reps, policies, tol, seed,
+                         n_prototype_boxes),
     )
     if fresh:
         clear_checkpoint(ckpt)
@@ -263,6 +310,7 @@ def run_table4_replication(pool_source='old', legacy_pool_dir=None, n_range=None
     )
 
     exact_df, raw_df = _aggregate(results, n_range, reps, policies, tol)
+    paper_df = table4_paper_columns(exact_df)
     comparison_df = _build_pdf_comparison(exact_df, policies)
 
     prefix = output_prefix or f'table_4_exact_optimality_{pool_source}'
@@ -271,44 +319,52 @@ def run_table4_replication(pool_source='old', legacy_pool_dir=None, n_range=None
     latex_path = os.path.join(output_dir, f'{prefix}.tex')
     comparison_path = os.path.join(output_dir, f'{prefix}_vs_pdf.csv')
 
-    exact_df.to_csv(exact_path, index=False)
+    paper_df.to_csv(exact_path, index=False, float_format='%.3f')
     if save_raw:
         raw_df.to_csv(raw_path, index=False)
-    save_latex(latex_path, format_table_4(exact_df))
-    comparison_df.to_csv(comparison_path, index=False)
+    save_latex(latex_path, format_table_4(paper_df))
+    if save_comparison:
+        comparison_df.to_csv(comparison_path, index=False)
 
     print('\nExact optimality rates:')
-    display_cols = ['N', 'instances'] + [
-        f'{policy}_exact_pct' for policy in policies
-    ]
-    print(exact_df[display_cols].to_string(index=False))
-
-    if not comparison_df.empty:
-        print('\nComparison against comparison.pdf Table 4:')
-        print(comparison_df.to_string(index=False))
+    print(paper_df.to_string(
+        index=False,
+        formatters={col: '{:.3f}'.format for col in paper_df.columns
+                    if col != 'N'},
+    ))
 
     print(f'\nSaved exact rates to {os.path.abspath(exact_path)}')
     if save_raw:
         print(f'Saved per-instance rates to {os.path.abspath(raw_path)}')
-    print(f'Saved PDF comparison to {os.path.abspath(comparison_path)}')
+    if save_comparison:
+        print(f'Saved PDF comparison to {os.path.abspath(comparison_path)}')
     return exact_df, raw_df, comparison_df
 
 
 def main():
     parser = argparse.ArgumentParser(description='Replicate Table 4')
     parser.add_argument('--pool-source', default='old',
-                        choices=['old', 'generated', 'random'],
-                        help='Use the bundled old pool or the generated pool')
+                        choices=['old', 'legacy-generated',
+                                 'legacy-generated-mixed', 'generated',
+                                 'random'],
+                        help='Use the bundled old pool, a legacy-style '
+                             'generated pool, or the generated pool')
     parser.add_argument('--legacy-pool-dir', default=None,
                         help='Directory containing bundled old-pool JSON data '
                              '(default: data/legacy_box_pools)')
-    parser.add_argument('--n-range', default='2:5',
+    parser.add_argument('--n-range', default='2:9',
                         help='Inclusive range like 2:5, or comma list')
     parser.add_argument('--reps', type=int, default=SMALL_INSTANCES,
                         help='Instances per N')
     parser.add_argument('--policies', default='INDEX,WHITTLE,COM',
                         help='Comma list: INDEX,WHITTLE,COM,STP,WEITZMAN,ALL')
     parser.add_argument('--seed', type=int, default=SEED)
+    parser.add_argument('--prototype-boxes', type=int,
+                        default=NUM_PROTOTYPICAL_BOXES,
+                        help='Number of generated prototype boxes '
+                             '(ignored for --pool-source old)')
+    parser.add_argument('--legacy-max-attempts', type=int, default=50000,
+                        help='Maximum random draws for legacy-generated pool')
     parser.add_argument('--tol', type=float, default=1e-4,
                         help='Exact-optimality tolerance in normalized gap')
     parser.add_argument('--workers', '-w', type=int, default=1,
@@ -321,6 +377,9 @@ def main():
                         help='Filename prefix for output files')
     parser.add_argument('--no-raw', action='store_true',
                         help='Do not write per-instance raw output')
+    parser.add_argument('--save-comparison', action='store_true',
+                        help='Write a diagnostic comparison against the '
+                             'values transcribed from the paper')
     args = parser.parse_args()
 
     run_table4_replication(
@@ -336,6 +395,9 @@ def main():
         fresh=args.fresh,
         output_prefix=args.output_prefix,
         save_raw=not args.no_raw,
+        n_prototype_boxes=args.prototype_boxes,
+        legacy_max_attempts=args.legacy_max_attempts,
+        save_comparison=args.save_comparison,
     )
 
 

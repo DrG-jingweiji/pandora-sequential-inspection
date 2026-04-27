@@ -172,17 +172,23 @@ def run_policy_benchmark(n_range=None, n_instances_small=None,
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     perf_df.to_csv(os.path.join(OUTPUT_DIR, 'table_3_performance.csv'), index=False)
     time_df.to_csv(os.path.join(OUTPUT_DIR, 'table_EC1_runtime.csv'), index=False)
-    if write_exact_table:
-        exact_df.to_csv(os.path.join(OUTPUT_DIR, 'table_4_exact_optimality.csv'), index=False)
 
     from experiments.formatting import (
         format_table_3, format_table_4, format_table_EC1, save_latex,
+        table4_paper_columns,
     )
+    paper_exact_df = table4_paper_columns(exact_df)
+
     save_latex(os.path.join(OUTPUT_DIR, 'table_3_performance.tex'),
                format_table_3(perf_df, dp_cutoff=DP_CUTOFF))
     if write_exact_table:
+        paper_exact_df.to_csv(
+            os.path.join(OUTPUT_DIR, 'table_4_exact_optimality.csv'),
+            index=False,
+            float_format='%.3f',
+        )
         save_latex(os.path.join(OUTPUT_DIR, 'table_4_exact_optimality.tex'),
-                   format_table_4(exact_df))
+                   format_table_4(paper_exact_df))
     save_latex(os.path.join(OUTPUT_DIR, 'table_EC1_runtime.tex'),
                format_table_EC1(time_df, dp_cutoff=DP_CUTOFF))
 
@@ -192,6 +198,10 @@ def run_policy_benchmark(n_range=None, n_instances_small=None,
         print("\nExact optimality:")
     else:
         print("\nExact optimality from benchmark pool (not written as Table 4):")
-    print(exact_df.to_string(index=False))
+    print(paper_exact_df.to_string(
+        index=False,
+        formatters={col: '{:.3f}'.format for col in paper_exact_df.columns
+                    if col != 'N'},
+    ))
 
     return perf_df, time_df, exact_df

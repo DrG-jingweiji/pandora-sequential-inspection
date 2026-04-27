@@ -38,7 +38,7 @@ pandora/                    Core solver library
   utils.py                  Helper functions
 
 data/
-  legacy_box_pools/         Bundled old selected box pool used by Table 4
+  legacy_box_pools/         Optional bundled old selected box pool for Table 4
 
 experiments/                Experiment runners
   config.py                 Parameters matching the paper's experimental setup
@@ -117,11 +117,11 @@ partition, com_value = best_committing_policy(solver)
 ```python
 from pandora.instance_generator import generate_prototypical_boxes
 
-# Generate a pool of diverse prototypical boxes (same method as the paper)
+# Generate a paper-style pool of diverse prototypical boxes
 boxes = generate_prototypical_boxes(
     n_boxes=100,          # pool size
-    min_distance=0.5,     # diversity threshold in (σ^F, σ^P) space
-    require_p_dominant=True,  # only keep boxes with σ^P > σ^F
+    distance=0.5,         # diversity threshold in (sigma^F, sigma^P) space
+    require_p_dominant=True,  # only keep boxes with sigma^P > sigma^F
 )
 
 # Sample N boxes from the pool for an instance
@@ -139,7 +139,7 @@ instance = [boxes[i] for i in rng.integers(0, len(boxes), size=5)]
 | `table_1_coverage.csv/.tex` | Table 1 — Coverage rates of Theorems 1–3 |
 | `table_2_dp_comparison.csv/.tex` | Table 2 — Naive vs structured DP (states, revisits, runtime) |
 | `table_3_performance.csv/.tex` | Table 3 — Normalized policy performance (mean, std, worst) |
-| `table_4_exact_optimality.csv/.tex` | Table 4 — Fraction of instances achieving optimality |
+| `table_4_exact_optimality.csv/.tex` | Table 4 — Fraction of instances achieving optimality, with only the paper columns |
 | `table_EC1_runtime.csv/.tex` | Table EC.1 — Policy runtimes |
 | `figure_3_prototypical_boxes.png` | Figure 3 — Prototypical box scatter plot |
 | `figure_EC8_*.png` | Figure EC.8 — Box selection visualization |
@@ -162,7 +162,16 @@ python -m experiments.run_all -e p_opening          # Figures EC.9, EC.10
 python -m experiments.run_all -e box_scatter        # Figures 3, EC.8
 
 # Focused Table 4 replication from the bundled old pool
-python -m experiments.replicate_table4 --pool-source old --n-range 2:5
+# This loads data/legacy_box_pools/legacy_selected_boxes_100_0p5.json.
+python -m experiments.replicate_table4 --pool-source old --n-range 2:9
+
+# Focused Table 4 probe generated from scratch with the old Experiment.py
+# prototype-selection rule. This does not read the bundled old pool.
+python -m experiments.replicate_table4 --pool-source legacy-generated --prototype-boxes 40 --n-range 2:5
+
+# Focused Table 4 probe generated from scratch with the old candidate-blocking
+# rule and the mixed threshold order observed in the stored old pool.
+python -m experiments.replicate_table4 --pool-source legacy-generated-mixed --prototype-boxes 100 --n-range 2:5
 ```
 
 ### CLI Options
@@ -178,6 +187,9 @@ python -m experiments.replicate_table4 --pool-source old --n-range 2:5
 | `--legacy-pool-dir PATH` | Override the bundled legacy pool directory |
 | `--table4-n-range SPEC` | Override Table 4 N range, e.g. `2:5` |
 | `--table4-reps N` | Override Table 4 instances per N |
+| `experiments.replicate_table4 --pool-source legacy-generated` | Generate a Table 4 test pool using the old `Experiment.py` candidate-blocking rule |
+| `experiments.replicate_table4 --pool-source legacy-generated-mixed` | Same candidate-blocking rule, but without the archived source's `sigma^P > sigma^F` prefilter |
+| `experiments.replicate_table4 --prototype-boxes N` | Number of generated prototypes for focused Table 4 runs |
 
 ### Parallel Execution and Crash Recovery
 
@@ -213,18 +225,43 @@ The `--small` flag reduces this to ~30 minutes for a quick sanity check.
 By default, `experiments.run_all` uses generated boxes for every experiment
 except Table 4:
 
-1. **Generated P-dominant pool** (`require_p_dominant=True`) — Used for
-   Tables 1, 2, 3, EC.1, and Figure 3.
-2. **Generated mixed pool** (`require_p_dominant=False`) — Used for the
-   P-opening analysis and Figures EC.8–EC.10.
-3. **Bundled old selected pool** (`data/legacy_box_pools/`) — Used for
-   Table 4 by default. The bundled file contains the old 100 selected
-   prototypical boxes; the loader applies the old `c_F > c_P` filter, leaving
-   the 56-box pool used in the original Table 4 run.
+1. **Generated P-dominant pool** (`require_p_dominant=True`) - Used for
+   Tables 1, 2, 3, EC.1, and Figure 3. This generates a new deterministic pool
+   from the paper-style random box distributions and does not read any old
+   stored pool.
+2. **Generated mixed pool** (`require_p_dominant=False`) - Used for the
+   P-opening analysis and Figures EC.8-EC.10. This also generates boxes from
+   scratch and does not read any old stored pool.
+3. **Bundled old selected pool** (`data/legacy_box_pools/`) - Used for
+   Table 4 by default in `experiments.run_all`. The bundled JSON file is a
+   project-local conversion of the old selected 100-box pool. The loader then
+   applies the old notebook `c_F > c_P` filter, leaving the 56-box pool used in
+   the original Table 4 run.
+4. **Legacy-style generated pool** (`experiments.replicate_table4 --pool-source legacy-generated`) -
+   A focused diagnostic Table 4 mode that generates boxes from scratch using
+   the recovered old `Experiment.py` candidate rule. It does not read the
+   bundled old pool. A candidate is blocked if it lies within distance 0.5 of
+   any previously valid candidate in `(sigma^P, sigma^F)` space, not just any
+   previously selected prototype. This mode also applies the archived source
+   condition `sigma^P > sigma^F`.
+5. **Legacy-style mixed generated pool** (`experiments.replicate_table4 --pool-source legacy-generated-mixed`) -
+   Generates boxes from scratch using the same old candidate-blocking rule, but
+   does not impose `sigma^P > sigma^F` before selecting prototypes. This is the
+   generated mode that best matches the mixed threshold order observed in the
+   stored old pool. After selecting the prototypes, it applies the old notebook
+   `c_F > c_P` filter before Table 4 sampling.
 
 This default keeps the reorganized/generated experiments for most outputs, but
 uses the old box pool for Table 4 because exact-optimality rates are especially
 sensitive to the selected boxes.
+
+For generated legacy-style Table 4 probes, the instance sampling still follows
+the old notebook stream: boxes are drawn from the selected pool with replacement
+using `np.random.RandomState(seed).randint(...)`. The paper describes the
+high-level experiment as sampling randomized copies from a prototypical pool
+with `c_F >= c_P`; the threshold-space blocking rule, the 5-value/3-type versus
+2-value/2-type mixture, and the old RNG stream are recovered implementation
+details from the old code rather than details stated explicitly in the paper.
 
 To make Table 4 use the same generated pool as Table 3/EC.1, run:
 
