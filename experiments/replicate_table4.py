@@ -1,16 +1,16 @@
 """Replicate Table 4 exact-optimality rates.
 
 This focused driver evaluates the policies in Table 4 against the exact DP
-value.  It can use either the new/generated prototypical box pool or the stored
-old pool bundled under ``data/legacy_box_pools``.  With ``--pool-source old``
-it also uses the old notebook's ``np.random.RandomState(seed).randint``
-sampling stream.
+value.  By default it generates the recovered legacy-style prototypical box
+pool from code.  It can also use the optional stored old pool bundled under
+``data/legacy_box_pools`` with ``--pool-source old``.
 
 Examples
 --------
-    python -m experiments.replicate_table4 --pool-source old --n-range 2:5
+    python -m experiments.replicate_table4 --n-range 2:5
     python -m experiments.replicate_table4 --pool-source legacy-generated
     python -m experiments.replicate_table4 --pool-source legacy-generated-mixed
+    python -m experiments.replicate_table4 --pool-source old --n-range 2:5
     python -m experiments.replicate_table4 --pool-source generated --reps 200
 """
 
@@ -243,7 +243,8 @@ def _checkpoint_name(pool_source, n_range, reps, policies, tol, seed,
             f'n{n_token}_r{reps}_{p_token}_{tol_token}')
 
 
-def run_table4_replication(pool_source='old', legacy_pool_dir=None, n_range=None,
+def run_table4_replication(pool_source='legacy-generated-mixed',
+                           legacy_pool_dir=None, n_range=None,
                            reps=SMALL_INSTANCES, policies=None, seed=SEED,
                            tol=1e-4, output_dir=None, n_workers=1,
                            fresh=False, output_prefix=None, save_raw=True,
@@ -343,12 +344,12 @@ def run_table4_replication(pool_source='old', legacy_pool_dir=None, n_range=None
 
 def main():
     parser = argparse.ArgumentParser(description='Replicate Table 4')
-    parser.add_argument('--pool-source', default='old',
+    parser.add_argument('--pool-source', default='legacy-generated-mixed',
                         choices=['old', 'legacy-generated',
                                  'legacy-generated-mixed', 'generated',
                                  'random'],
-                        help='Use the bundled old pool, a legacy-style '
-                             'generated pool, or the generated pool')
+                        help='Use a legacy-style generated pool, the generated '
+                             'pool, or the optional bundled old pool')
     parser.add_argument('--legacy-pool-dir', default=None,
                         help='Directory containing bundled old-pool JSON data '
                              '(default: data/legacy_box_pools)')

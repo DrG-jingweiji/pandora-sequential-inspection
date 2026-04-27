@@ -9,6 +9,7 @@ Usage:
     python -m experiments.run_all --small                 # Quick run, fewer instances
     python -m experiments.run_all --workers 6             # Use 6 parallel processes
     python -m experiments.run_all --fresh                 # Discard checkpoints, start over
+    python -m experiments.run_all --pool-source generated # Use the newer generator
     python -m experiments.run_all --table4-pool-source benchmark
 """
 
@@ -23,6 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from pandora.instance_generator import (
     bundled_legacy_pool_dir,
+    generate_legacy_style_prototypical_boxes,
     generate_prototypical_boxes,
     load_legacy_box_pool,
 )
@@ -64,6 +66,33 @@ def _load_old_boxes(pool_dir, filter_cF_gt_cP=True):
     all_boxes = load_legacy_box_pool(pool_dir=pool_dir, filter_cF_gt_cP=False)
     print(f"  {len(selected)} selected from {len(all_boxes)} bundled old boxes")
     return selected, all_boxes
+
+
+def _generate_legacy_style_boxes(seed, pool_source, n_boxes, max_attempts):
+    """Generate the recovered old-code prototype pool without reading old data."""
+    require_p_dominant = pool_source == 'legacy-generated'
+    label = (
+        "legacy-style P-dominant"
+        if require_p_dominant else
+        "legacy-style mixed"
+    )
+    print(f"Generating {label} prototypical boxes from code...")
+    selected_unfiltered, all_candidates = generate_legacy_style_prototypical_boxes(
+        n_boxes,
+        BOX_DISTANCE,
+        rng=random.Random(seed),
+        max_attempts=max_attempts,
+        return_all=True,
+        filter_cF_gt_cP=False,
+        require_p_dominant=require_p_dominant,
+    )
+    selected = [box for box in selected_unfiltered if box.c_F > box.c_P]
+    print(
+        f"  {len(selected)} selected after c_F > c_P filter "
+        f"from {len(selected_unfiltered)} prototypes "
+        f"({len(all_candidates)} valid candidates)"
+    )
+    return selected, selected_unfiltered, all_candidates
 
 
 def _parse_n_range(spec):
@@ -132,20 +161,33 @@ def main():
                              f'(default: {DEFAULT_WORKERS})')
     parser.add_argument('--fresh', action='store_true',
                         help='Clear all checkpoints and start from scratch')
-    parser.add_argument('--pool-source', type=str, default='generated',
-                        choices=['generated', 'random', 'old'],
-                        help=('Box pool to use. "generated" and "random" '
-                              'generate a fresh deterministic pool; "old" '
-                              'loads the bundled old pool and uses the '
-                              'old notebook sampling stream.'))
+    parser.add_argument('--pool-source', type=str,
+                        default='legacy-generated-mixed',
+                        choices=['legacy-generated-mixed',
+                                 'legacy-generated',
+                                 'generated', 'random', 'old'],
+                        help=('Box pool to use. Default '
+                              '"legacy-generated-mixed" generates the '
+                              'recovered old-code prototype pool from code '
+                              'and uses the old notebook sampling stream. '
+                              '"generated" and "random" use the newer '
+                              'deterministic generator; "old" loads the '
+                              'optional bundled old pool.'))
+    parser.add_argument('--prototype-boxes', type=int,
+                        default=NUM_PROTOTYPICAL_BOXES,
+                        help='Number of generated prototype boxes for '
+                             'legacy-generated pool modes')
+    parser.add_argument('--legacy-max-attempts', type=int, default=50000,
+                        help='Maximum random draws for legacy-generated pools')
     parser.add_argument('--legacy-pool-dir', type=str, default=None,
                         help='Directory containing bundled old-pool JSON data '
                              '(default: data/legacy_box_pools)')
-    parser.add_argument('--table4-pool-source', type=str, default='old',
+    parser.add_argument('--table4-pool-source', type=str, default='benchmark',
                         choices=['old', 'benchmark'],
-                        help=('Pool for Table 4. Default "old" uses the '
-                              'bundled old pool; "benchmark" uses the same '
-                              'pool as Tables 3/EC.1.'))
+                        help=('Pool for Table 4. Default "benchmark" uses '
+                              'the same generated pool as Tables 3/EC.1; '
+                              '"old" runs Table 4 from the optional bundled '
+                              'old pool.'))
     parser.add_argument('--table4-n-range', type=str, default=None,
                         help='Override Table 4 N range, e.g. 2:5 or 2,3,4')
     parser.add_argument('--table4-reps', type=int, default=None,
@@ -153,7 +195,10 @@ def main():
     args = parser.parse_args()
 
     pool_source = 'generated' if args.pool_source == 'random' else args.pool_source
-    use_legacy_pool = pool_source == 'old'
+    use_old_pool = pool_source == 'old'
+    use_legacy_sampling = pool_source in (
+        'old', 'legacy-generated', 'legacy-generated-mixed',
+    )
 
     n_workers = args.workers
     n_small = 10 if args.small else None
@@ -169,7 +214,7 @@ def main():
     print(f"Using {n_workers} parallel worker(s)")
 
     # Main pool for Tables 1-4, EC.1 and Figure 3.
-    if use_legacy_pool:
+    if use_old_pool:
         print("Using bundled old box pool with legacy RandomState sampling")
         selected_boxes, all_candidates = _load_old_boxes(
             args.legacy_pool_dir,
@@ -180,6 +225,16 @@ def main():
             filter_cF_gt_cP=False,
         )
         p_opening_candidates = all_candidates
+    elif pool_source in ('legacy-generated', 'legacy-generated-mixed'):
+        selected_boxes, p_opening_boxes, p_opening_candidates = (
+            _generate_legacy_style_boxes(
+                SEED,
+                pool_source,
+                args.prototype_boxes,
+                args.legacy_max_attempts,
+            )
+        )
+        all_candidates = p_opening_candidates
     else:
         selected_boxes, all_candidates = _generate_boxes(SEED, small=args.small)
 
@@ -228,7 +283,7 @@ def main():
             run_coverage_experiment(n_range=n_range_small, n_instances=n_small,
                                     selected_boxes=selected_boxes,
                                     n_workers=n_workers,
-                                    legacy_sampling=use_legacy_pool)
+                                    legacy_sampling=use_legacy_sampling)
 
         # ---- Experiment 2: DP comparison (Table 2) ----
         if args.experiment in ('all', 'dp_comparison'):
@@ -240,7 +295,7 @@ def main():
             run_dp_comparison(n_range=dp_n_range, n_instances=n_small,
                               selected_boxes=selected_boxes,
                               n_workers=n_workers,
-                              legacy_sampling=use_legacy_pool)
+                              legacy_sampling=use_legacy_sampling)
 
         # ---- Experiment 3: Policy benchmark (Tables 3, 4, EC.1) ----
         if args.experiment in ('all', 'policy_benchmark'):
@@ -254,7 +309,7 @@ def main():
                                  n_instances_large=n_large,
                                  selected_boxes=selected_boxes,
                                  n_workers=n_workers,
-                                 legacy_sampling=use_legacy_pool,
+                                 legacy_sampling=use_legacy_sampling,
                                  write_exact_table=table4_from_benchmark)
 
             if args.table4_pool_source == 'old':
@@ -295,7 +350,7 @@ def main():
             run_p_opening_analysis(n_range=n_range_small, n_instances=n_small,
                                    selected_boxes=p_opening_boxes,
                                    n_workers=n_workers,
-                                   legacy_sampling=use_legacy_pool)
+                                   legacy_sampling=use_legacy_sampling)
             n_mb_range = range(1, 4) if args.small else None
             run_more_boxes_experiment(n_range=n_mb_range,
                                       n_workers=n_workers)

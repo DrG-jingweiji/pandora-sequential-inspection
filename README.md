@@ -20,11 +20,15 @@ pip install -r requirements.txt
 # Run the tutorial to see how the library works
 python tutorial.py
 
-# Run all numerical experiments (takes ~50 hours with 4 workers)
-python -m experiments.run_all --workers 4
+# Run the full public-replication experiment suite.
+# This uses the generated legacy-style box pool by default.
+python -m experiments.run_legacy_style_comparison --fresh
 
-# Quick test run (~30 min) with smaller instances
-python -m experiments.run_all --small
+# Stable check report up to N=6, with large instances skipped
+python -m experiments.run_legacy_style_comparison --preset check --fresh
+
+# Quick diagnostic run
+python -m experiments.run_legacy_style_comparison --preset short --fresh
 ```
 
 ## Repository Structure
@@ -38,7 +42,7 @@ pandora/                    Core solver library
   utils.py                  Helper functions
 
 data/
-  legacy_box_pools/         Optional bundled old selected box pool for Table 4
+  legacy_box_pools/         Optional old selected box pool for diagnostics
 
 experiments/                Experiment runners
   config.py                 Parameters matching the paper's experimental setup
@@ -51,6 +55,8 @@ experiments/                Experiment runners
   figures.py                Matplotlib figure generators
   formatting.py             LaTeX table formatters
   run_all.py                CLI entry point
+  run_legacy_style_comparison.py
+                            Default public-replication runner and comparison PDF builder
 
 tests/                      Validation and comparison
   test_box_thresholds.py    Unit tests for threshold computations
@@ -115,19 +121,23 @@ partition, com_value = best_committing_policy(solver)
 ### Generating Random Instances
 
 ```python
-from pandora.instance_generator import generate_prototypical_boxes
+import random
+from pandora.instance_generator import generate_legacy_style_prototypical_boxes
 
-# Generate a paper-style pool of diverse prototypical boxes
-boxes = generate_prototypical_boxes(
-    n_boxes=100,          # pool size
-    distance=0.5,         # diversity threshold in (sigma^F, sigma^P) space
-    require_p_dominant=True,  # only keep boxes with sigma^P > sigma^F
+# Generate the default public-replication pool from code.
+# This does not read the archived old pickle or the bundled old JSON pool.
+unfiltered_boxes = generate_legacy_style_prototypical_boxes(
+    n_boxes=100,
+    distance=0.5,
+    rng=random.Random(0),
+    require_p_dominant=False,
 )
+boxes = [box for box in unfiltered_boxes if box.c_F > box.c_P]
 
 # Sample N boxes from the pool for an instance
 import numpy as np
-rng = np.random.default_rng(42)
-instance = [boxes[i] for i in rng.integers(0, len(boxes), size=5)]
+rng = np.random.RandomState(42)
+instance = [boxes[i] for i in rng.randint(0, len(boxes), size=5)]
 ```
 
 ## Reproducing the Paper's Experiments
@@ -151,19 +161,29 @@ All output is written to the `output/` directory.
 ### Running Experiments
 
 ```bash
-# Full run (all experiments)
-python -m experiments.run_all
+# Full public-replication run.
+# Default: legacy-style generated mixed pool, full preset, 12 workers.
+python -m experiments.run_legacy_style_comparison --fresh
 
-# Run a single experiment
+# Resume the same run from checkpoints
+python -m experiments.run_legacy_style_comparison
+
+# Quick diagnostic run
+python -m experiments.run_legacy_style_comparison --preset short --fresh
+
+# Stable check report up to N=6, with no large-instance rows
+python -m experiments.run_legacy_style_comparison --preset check --fresh
+
+# Run a single experiment through the general runner.
+# This also defaults to the legacy-style generated mixed pool.
 python -m experiments.run_all -e coverage          # Table 1
 python -m experiments.run_all -e dp_comparison      # Table 2
 python -m experiments.run_all -e policy_benchmark   # Tables 3, 4, EC.1
 python -m experiments.run_all -e p_opening          # Figures EC.9, EC.10
 python -m experiments.run_all -e box_scatter        # Figures 3, EC.8
 
-# Focused Table 4 replication from the bundled old pool
-# This loads data/legacy_box_pools/legacy_selected_boxes_100_0p5.json.
-python -m experiments.replicate_table4 --pool-source old --n-range 2:9
+# Focused Table 4 replication from the default generated legacy-style pool
+python -m experiments.replicate_table4 --n-range 2:9
 
 # Focused Table 4 probe generated from scratch with the old Experiment.py
 # prototype-selection rule. This does not read the bundled old pool.
@@ -172,6 +192,12 @@ python -m experiments.replicate_table4 --pool-source legacy-generated --prototyp
 # Focused Table 4 probe generated from scratch with the old candidate-blocking
 # rule and the mixed threshold order observed in the stored old pool.
 python -m experiments.replicate_table4 --pool-source legacy-generated-mixed --prototype-boxes 100 --n-range 2:5
+
+# Use the newer reorganized generator instead of the legacy-style generator
+python -m experiments.run_all --pool-source generated
+
+# Optional diagnostic: focused Table 4 replication from the bundled old pool
+python -m experiments.replicate_table4 --pool-source old --n-range 2:9
 ```
 
 ### CLI Options
@@ -182,14 +208,19 @@ python -m experiments.replicate_table4 --pool-source legacy-generated-mixed --pr
 | `--small` | Quick test with reduced N range and fewer instances |
 | `--workers N`, `-w N` | Number of parallel worker processes (default: 3) |
 | `--fresh` | Clear all checkpoints and start from scratch |
-| `--pool-source generated\|old` | Pool for Tables 1-3, EC.1, and the main figures. Default: `generated` |
-| `--table4-pool-source old\|benchmark` | Pool for Table 4. Default: `old`, the bundled legacy pool |
+| `--pool-source legacy-generated-mixed\|legacy-generated\|generated\|old` | Pool for Tables 1-3, EC.1, and the main figures. Default: `legacy-generated-mixed` |
+| `--prototype-boxes N` | Number of generated prototypes in legacy-generated pool modes. Default: 100 |
+| `--legacy-max-attempts N` | Maximum random draws for legacy-style prototype generation |
+| `--table4-pool-source benchmark\|old` | Pool for Table 4. Default: `benchmark`, the same generated pool used by Tables 3/EC.1 |
 | `--legacy-pool-dir PATH` | Override the bundled legacy pool directory |
 | `--table4-n-range SPEC` | Override Table 4 N range, e.g. `2:5` |
 | `--table4-reps N` | Override Table 4 instances per N |
 | `experiments.replicate_table4 --pool-source legacy-generated` | Generate a Table 4 test pool using the old `Experiment.py` candidate-blocking rule |
 | `experiments.replicate_table4 --pool-source legacy-generated-mixed` | Same candidate-blocking rule, but without the archived source's `sigma^P > sigma^F` prefilter |
 | `experiments.replicate_table4 --prototype-boxes N` | Number of generated prototypes for focused Table 4 runs |
+| `experiments.run_legacy_style_comparison` | Full paper-scale run using generated legacy-style boxes for all pool-based outputs and a comparison PDF |
+| `experiments.run_legacy_style_comparison --preset check` | Stable no-large-instance check report: N=2..6, 100 replications per N, Figure EC.10d N=1..6 |
+| `experiments.run_legacy_style_comparison --preset short` | Short diagnostic run using generated legacy-style boxes for all pool-based outputs |
 
 ### Parallel Execution and Crash Recovery
 
@@ -199,12 +230,20 @@ interrupted (crash, Ctrl-C, SSH disconnect), re-running the same command
 automatically resumes from the last checkpoint:
 
 ```bash
-python -m experiments.run_all --workers 4    # interrupted at 40%
-python -m experiments.run_all --workers 4    # resumes from checkpoint
+python -m experiments.run_legacy_style_comparison --fresh    # interrupted at 40%
+python -m experiments.run_legacy_style_comparison            # resumes from checkpoint
 ```
 
 Use `--fresh` to discard checkpoints and restart. This is necessary when
 changing parameters (e.g., switching between `--small` and full runs).
+
+For the legacy-style comparison runner, use the same command without `--fresh`
+to resume from checkpoints. To rebuild only the comparison PDF after a completed
+or partially completed run, use:
+
+```bash
+python -m experiments.run_legacy_style_comparison --skip-experiments
+```
 
 ### Runtime Estimates
 
@@ -220,50 +259,106 @@ With 4 parallel workers on a modern machine:
 
 The `--small` flag reduces this to ~30 minutes for a quick sanity check.
 
+### Full Legacy-Style Paper Run
+
+To generate all paper and appendix tables/figures using the recovered
+legacy-style prototype pool, run:
+
+```bash
+python -m experiments.run_legacy_style_comparison --fresh
+```
+
+The full preset uses:
+
+| Setting | Value |
+|---|---|
+| Prototype generation | `legacy-generated-mixed` |
+| Prototypes requested | 100 |
+| Main pool filter | `c_F > c_P` |
+| DP-based N range | 2--9 |
+| DP-based replications | 200 per N |
+| Heuristic-only N range | 10--16 |
+| Heuristic-only replications | 100 per N |
+| Figure EC.10d N range | 1--7 |
+| Workers | 12 |
+
+For a smaller but still stable check report, run:
+
+```bash
+python -m experiments.run_legacy_style_comparison --preset check --fresh
+```
+
+The check preset skips large-instance rows and uses `N=2..6` with 100
+replications per `N`, so Table 4 is much less noisy than a 5-rep smoke test.
+It writes to `output/legacy_style_check/` and builds
+`comparison_legacy_style_check.pdf`.
+
+Outputs are written to `output/legacy_style_full/`, including:
+
+- `table_1_coverage.csv/.tex`
+- `table_2_dp_comparison.csv/.tex`
+- `table_3_performance.csv/.tex`
+- `table_4_exact_optimality.csv/.tex`
+- `table_EC1_runtime.csv/.tex`
+- `figure_3_prototypical_boxes.png`
+- `figure_EC8_prototypical_boxes_selection.png`
+- `figure_EC9a_p_ratio_vs_proportion.png`
+- `figure_EC9b_weitzman_vs_proportion.png`
+- `figure_EC10a_low_dispersion.png`
+- `figure_EC10b_high_dispersion.png`
+- `figure_EC10c_p_ratio_vs_dispersion.png`
+- `figure_EC10d_p_ratio_vs_num_boxes.png`
+- `comparison_legacy_style_full.pdf`
+
+The comparison PDF always includes paper reference tables. To also include the
+paper's original figure PNGs side by side, pass their directory:
+
+```bash
+python -m experiments.run_legacy_style_comparison --fresh \
+  --reference-figure-dir PATH_TO_PAPER_EXPERIMENTS_GRAPHS \
+  --reference-figure3 PATH_TO_PAPER_FIGURE_3_PNG
+```
+
 ### Prototypical Box Pools
 
-By default, `experiments.run_all` uses generated boxes for every experiment
-except Table 4:
+The default public-replication pool is generated from code with
+`--pool-source legacy-generated-mixed`.  This is the default for both
+`experiments.run_legacy_style_comparison` and `experiments.run_all`; it does not
+read the archived old pickle, the old folder, or the optional bundled old JSON
+pool.
 
-1. **Generated P-dominant pool** (`require_p_dominant=True`) - Used for
-   Tables 1, 2, 3, EC.1, and Figure 3. This generates a new deterministic pool
-   from the paper-style random box distributions and does not read any old
-   stored pool.
-2. **Generated mixed pool** (`require_p_dominant=False`) - Used for the
-   P-opening analysis and Figures EC.8-EC.10. This also generates boxes from
-   scratch and does not read any old stored pool.
-3. **Bundled old selected pool** (`data/legacy_box_pools/`) - Used for
-   Table 4 by default in `experiments.run_all`. The bundled JSON file is a
-   project-local conversion of the old selected 100-box pool. The loader then
-   applies the old notebook `c_F > c_P` filter, leaving the 56-box pool used in
-   the original Table 4 run.
-4. **Legacy-style generated pool** (`experiments.replicate_table4 --pool-source legacy-generated`) -
-   A focused diagnostic Table 4 mode that generates boxes from scratch using
-   the recovered old `Experiment.py` candidate rule. It does not read the
-   bundled old pool. A candidate is blocked if it lies within distance 0.5 of
-   any previously valid candidate in `(sigma^P, sigma^F)` space, not just any
-   previously selected prototype. This mode also applies the archived source
-   condition `sigma^P > sigma^F`.
-5. **Legacy-style mixed generated pool** (`experiments.replicate_table4 --pool-source legacy-generated-mixed`) -
-   Generates boxes from scratch using the same old candidate-blocking rule, but
-   does not impose `sigma^P > sigma^F` before selecting prototypes. This is the
-   generated mode that best matches the mixed threshold order observed in the
-   stored old pool. After selecting the prototypes, it applies the old notebook
-   `c_F > c_P` filter before Table 4 sampling.
+The default pool construction is:
 
-This default keeps the reorganized/generated experiments for most outputs, but
-uses the old box pool for Table 4 because exact-optimality rates are especially
-sensitive to the selected boxes.
+1. Draw candidate boxes using the recovered old `Experiment.py` generators. The
+   positive-threshold candidate counter determines the mixture: every third
+   valid candidate uses the 2-value/2-type generator; the other valid
+   candidates use the 5-value/3-type generator.
+2. Keep a candidate as a prototype only if no previous valid candidate is within
+   Euclidean distance 0.5 in `(sigma^P, sigma^F)` space.  The default mixed mode
+   does not impose `sigma^P > sigma^F` before prototype selection.
+3. Stop after selecting 100 prototypes.  Tables 1-4, Table EC.1, and Figure 3
+   use the subset satisfying `c_F > c_P`.  The P-opening figures use the
+   unfiltered selected prototypes.
+4. Sample instance boxes from the selected pool with replacement using the old
+   notebook stream, `np.random.RandomState(seed).randint(...)`.
 
-For generated legacy-style Table 4 probes, the instance sampling still follows
-the old notebook stream: boxes are drawn from the selected pool with replacement
-using `np.random.RandomState(seed).randint(...)`. The paper describes the
-high-level experiment as sampling randomized copies from a prototypical pool
-with `c_F >= c_P`; the threshold-space blocking rule, the 5-value/3-type versus
-2-value/2-type mixture, and the old RNG stream are recovered implementation
-details from the old code rather than details stated explicitly in the paper.
+Other pool modes are available for diagnostics:
 
-To make Table 4 use the same generated pool as Table 3/EC.1, run:
+- `--pool-source legacy-generated` uses the same old candidate-blocking rule
+  but also imposes the archived source condition `sigma^P > sigma^F`.
+- `--pool-source generated` uses the newer reorganized generator.
+- `--pool-source old` loads the optional bundled old selected pool under
+  `data/legacy_box_pools/`.
+- `--table4-pool-source old` runs Table 4 from the optional bundled old pool
+  instead of the benchmark pool.
+
+The paper describes the high-level experiment as sampling randomized copies from
+a prototypical pool with `c_F >= c_P`.  The threshold-space blocking rule, the
+5-value/3-type versus 2-value/2-type mixture, and the old RNG stream are
+recovered implementation details from the old code and are now generated
+directly in this repository.
+
+To force Table 4 to use the same benchmark pool explicitly, run:
 
 ```bash
 python -m experiments.run_all --table4-pool-source benchmark
@@ -286,10 +381,10 @@ cd tests && tectonic comparison.tex
 The visual comparison document (`tests/comparison.pdf`) places each paper table
 and figure above the corresponding generated output for easy manual inspection.
 
-**Note on reproducibility:** Tables 1, 2, 3, EC.1, and the figures use generated
-box pools by default, so they may differ from the historical run when a result is
-sensitive to the exact selected boxes. Table 4 uses the bundled old selected pool
-by default and is intended to match the original Table 4 much more closely.
+**Note on reproducibility:** The default public-replication path uses the
+legacy-style pool generated from code, then samples from that pool with the old
+notebook RNG stream.  The optional bundled old pool is retained only for
+diagnostics; it is not required to reproduce the default results.
 
 ## Running Unit Tests
 
